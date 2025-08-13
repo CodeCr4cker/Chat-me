@@ -1,0 +1,722 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FireChat - Dark Theme Chat</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        dark: {
+                            900: '#121212',
+                            800: '#1E1E1E',
+                            700: '#252525',
+                            600: '#2E2E2E',
+                            500: '#3D3D3D',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-auth.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-firestore.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-storage.js"></script>
+    <style>
+        :root {
+            --primary-color: #6D28D9;
+            --secondary-color: #1E1E1E;
+            --dark-color: #121212;
+            --light-color: #F3F4F6;
+            --danger-color: #EF4444;
+            --success-color: #10B981;
+        }
+        
+        /* Loader Styles */
+        .loader-container {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: var(--dark-color);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 9999;
+        }
+        
+        .loader {
+            width: 50px;
+            height: 50px;
+            border: 5px solid var(--primary-color);
+            border-radius: 50%;
+            border-top-color: transparent;
+            animation: spin 1s linear infinite;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .chat-container {
+            height: calc(100vh - 160px);
+        }
+        
+        .message-input {
+            min-height: 50px;
+            max-height: 150px;
+            resize: none;
+        }
+        
+        .message-image {
+            max-width: 300px;
+            max-height: 300px;
+            border-radius: 0.5rem;
+        }
+        
+        .typing-indicator {
+            display: none;
+            font-size: 0.8rem;
+            color: #A1A1AA;
+            margin-left: 0.5rem;
+        }
+        
+        .online-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background-color: var(--success-color);
+            display: inline-block;
+            margin-right: 5px;
+        }
+        
+        @media (max-width: 640px) {
+            .sidebar {
+                transform: translateX(-100%);
+                transition: transform 0.3s ease;
+                z-index: 10;
+            }
+            .sidebar.active {
+                transform: translateX(0);
+            }
+        }
+    </style>
+</head>
+<body class="bg-gray-900 text-gray-100">
+    <!-- Initial Loader -->
+    <div id="initial-loader" class="loader-container">
+        <div class="loader"></div>
+    </div>
+
+    <!-- Main App (initially hidden) -->
+    <div id="app-container" class="hidden">
+        <!-- Auth Screens -->
+        <div id="auth-screen" class="min-h-screen flex items-center justify-center bg-gray-900 p-4">
+            <div class="w-full max-w-md bg-gray-800 rounded-lg shadow-lg overflow-hidden">
+                <div class="p-6">
+                    <div class="flex justify-center mb-6">
+                        <img src="https://placehold.co/100x100?text=FC" alt="FireChat Logo" class="w-16 h-16 rounded-full bg-purple-600 flex items-center justify-center text-white text-2xl font-bold">
+                    </div>
+                    
+                    <!-- Login Form -->
+                    <form id="login-form" class="space-y-4">
+                        <h2 class="text-2xl font-bold text-center text-white">Welcome Back</h2>
+                        <p class="text-center text-gray-400 mb-6">Sign in to continue chatting</p>
+                        
+                        <div>
+                            <label for="login-email" class="block text-sm font-medium text-gray-300 mb-1">Email</label>
+                            <input type="email" id="login-email" class="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg focus:ring-2 focus:ring-purple-600 focus:outline-none" required>
+                        </div>
+                        
+                        <div>
+                            <label for="login-password" class="block text-sm font-medium text-gray-300 mb-1">Password</label>
+                            <input type="password" id="login-password" class="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg focus:ring-2 focus:ring-purple-600 focus:outline-none" required>
+                        </div>
+                        
+                        <div class="flex items-center justify-between">
+                            <div class="flex items-center">
+                                <input id="remember-me" type="checkbox" class="w-4 h-4 text-purple-600 bg-gray-700 border-gray-600 rounded focus:ring-purple-600">
+                                <label for="remember-me" class="ml-2 text-sm text-gray-300">Remember me</label>
+                            </div>
+                            <button type="button" id="forgot-password" class="text-sm text-purple-400 hover:text-purple-300">Forgot password?</button>
+                        </div>
+                        
+                        <button type="submit" class="w-full bg-purple-600 hover:bg-purple-700 text-white py-2 rounded-lg transition duration-200 font-medium">
+                            Sign In
+                        </button>
+                        
+                        <p class="text-center text-gray-400 mt-4">
+                            Don't have an account? 
+                            <button type="button" id="switch-to-register" class="text-purple-400 hover:text-purple-300 font-medium">Sign up</button>
+                        </p>
+                    </form>
+                    
+                    <!-- Register Form (initially hidden) -->
+                    <form id="register-form" class="space-y-4 hidden">
+                        <h2 class="text-2xl font-bold text-center text-white">Create Account</h2>
+                        <p class="text-center text-gray-400 mb-6">Join our community</p>
+                        
+                        <div>
+                            <label for="register-username" class="block text-sm font-medium text-gray-300 mb-1">Username</label>
+                            <input type="text" id="register-username" class="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg focus:ring-2 focus:ring-purple-600 focus:outline-none" required>
+                        </div>
+                        
+                        <div>
+                            <label for="register-email" class="block text-sm font-medium text-gray-300 mb-1">Email</label>
+                            <input type="email" id="register-email" class="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg focus:ring-2 focus:ring-purple-600 focus:outline-none" required>
+                        </div>
+                        
+                        <div>
+                            <label for="register-password" class="block text-sm font-medium text-gray-300 mb-1">Password</label>
+                            <input type="password" id="register-password" class="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg focus:ring-2 focus:ring-purple-600 focus:outline-none" minlength="6" required>
+                        </div>
+                        
+                        <div>
+                            <label for="register-confirm-password" class="block text-sm font-medium text-gray-300 mb-1">Confirm Password</label>
+                            <input type="password" id="register-confirm-password" class="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg focus:ring-2 focus:ring-purple-600 focus:outline-none" minlength="6" required>
+                        </div>
+                        
+                        <button type="submit" class="w-full bg-purple-600 hover:bg-purple-700 text-white py-2 rounded-lg transition duration-200 font-medium">
+                            Create Account
+                        </button>
+                        
+                        <p class="text-center text-gray-400 mt-4">
+                            Already have an account? 
+                            <button type="button" id="switch-to-login" class="text-purple-400 hover:text-purple-300 font-medium">Sign in</button>
+                        </p>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <!-- Chat App (initially hidden) -->
+        <div id="chat-app" class="flex flex-col h-screen hidden">
+            <!-- Navigation Bar -->
+            <nav class="bg-gray-800 p-4 flex justify-between items-center shadow-md">
+                <div class="flex items-center space-x-2">
+                    <button id="menu-button" class="md:hidden">
+                        <i class="fas fa-bars text-xl"></i>
+                    </button>
+                    <h1 class="text-xl font-bold">FireChat</h1>
+                </div>
+                <div class="flex items-center space-x-3">
+                    <span id="username-display" class="font-medium"></span>
+                    <div class="relative">
+                        <button id="user-dropdown-btn">
+                            <div class="w-8 h-8 rounded-full bg-purple-600 flex items-center justify-center text-white">
+                                <i class="fas fa-user"></i>
+                            </div>
+                        </button>
+                        <div id="user-dropdown" class="hidden absolute right-0 mt-2 w-48 bg-gray-700 rounded-md shadow-lg py-1 z-20">
+                            <a href="#" id="profile-link" class="block px-4 py-2 text-gray-200 hover:bg-gray-600">Profile</a>
+                            <a href="#" id="logout-link" class="block px-4 py-2 text-gray-200 hover:bg-gray-600">Logout</a>
+                        </div>
+                    </div>
+                </div>
+            </nav>
+
+            <!-- Main Content -->
+            <div class="flex flex-1 overflow-hidden">
+                <!-- Sidebar -->
+                <div id="sidebar" class="sidebar bg-gray-800 w-64 border-r border-gray-700 flex flex-col md:relative fixed h-full">
+                    <div class="p-4 border-b border-gray-700">
+                        <h2 class="text-lg font-semibold">Chat Rooms</h2>
+                    </div>
+                    <div class="flex-1 overflow-y-auto p-2" id="rooms-list">
+                        <!-- Rooms will be populated here -->
+                    </div>
+                    <div class="p-4 border-t border-gray-700">
+                        <h2 class="text-lg font-semibold mb-2">Online Users</h2>
+                        <div class="space-y-2" id="online-users">
+                            <!-- Online users will be populated here -->
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Chat Area -->
+                <div class="flex-1 flex flex-col bg-gray-900">
+                    <!-- Chat Header -->
+                    <div class="p-4 border-b border-gray-800 flex items-center">
+                        <h2 id="current-room" class="text-lg font-semibold">Select a room to start chatting</h2>
+                        <div id="typing-indicator" class="typing-indicator"></div>
+                    </div>
+
+                    <!-- Messages Container -->
+                    <div class="chat-container overflow-y-auto p-4 flex-1 bg-gray-900" id="messages-container">
+                        <div class="flex items-center justify-center h-full text-gray-500" id="empty-state">
+                            <div class="text-center">
+                                <img src="https://placehold.co/300x200?text=Select+a+room" alt="Empty chat screen illustration showing speech bubbles and a smiling character" class="mx-auto mb-4 rounded-lg" />
+                                <p class="text-lg">Select a chat room or start a new conversation</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Message Input -->
+                    <div class="p-4 border-t border-gray-800 bg-gray-800">
+                        <div id="file-preview" class="mb-2 hidden">
+                            <div class="flex items-center bg-gray-700 p-2 rounded">
+                                <span id="file-name" class="flex-1 truncate text-gray-300"></span>
+                                <button id="cancel-upload" class="text-red-500 ml-2">
+                                    <i class="fas fa-times"></i>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="flex">
+                            <div class="flex-1 mr-2 relative">
+                                <textarea id="message-input" class="message-input w-full bg-gray-700 border border-gray-600 rounded-lg p-2 text-gray-200 focus:outline-none focus:ring-2 focus:ring-purple-600" placeholder="Type your message..."></textarea>
+                                <div class="absolute right-2 bottom-2 flex space-x-1">
+                                    <button id="image-upload-btn" class="text-gray-400 hover:text-purple-500">
+                                        <i class="fas fa-image"></i>
+                                    </button>
+                                    <button id="file-upload-btn" class="text-gray-400 hover:text-purple-500">
+                                        <i class="fas fa-paperclip"></i>
+                                    </button>
+                                </div>
+                                <input type="file" id="image-input" class="hidden" accept="image/*" />
+                                <input type="file" id="file-input" class="hidden" accept="*" />
+                            </div>
+                            <button id="send-btn" class="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg transition">
+                                <i class="fas fa-paper-plane"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Profile Modal -->
+            <div id="profile-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center hidden">
+                <div class="bg-gray-800 rounded-lg p-6 w-full max-w-md">
+                    <div class="flex justify-between items-center mb-4">
+                        <h2 class="text-xl font-bold text-white">Profile Settings</h2>
+                        <button id="close-profile-modal" class="text-gray-400 hover:text-gray-300">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </div>
+                    <div class="mb-6 flex justify-center">
+                        <div class="relative">
+                            <div class="w-32 h-32 rounded-full bg-gray-700 flex items-center justify-center text-gray-400">
+                                <i class="fas fa-user text-4xl"></i>
+                            </div>
+                            <button id="change-avatar" class="absolute bottom-0 right-0 bg-purple-600 hover:bg-purple-700 text-white rounded-full w-8 h-8 flex items-center justify-center">
+                                <i class="fas fa-camera"></i>
+                            </button>
+                            <input type="file" id="avatar-input" class="hidden" accept="image/*" />
+                        </div>
+                    </div>
+                    <form id="profile-form">
+                        <div class="mb-4">
+                            <label for="profile-username" class="block text-sm font-medium text-gray-300 mb-2">Username</label>
+                            <input type="text" id="profile-username" class="w-full p-2 bg-gray-700 border border-gray-600 rounded-lg text-gray-200 focus:outline-none focus:ring-2 focus:ring-purple-600" required>
+                        </div>
+                        <div class="mb-4">
+                            <label for="profile-email" class="block text-sm font-medium text-gray-300 mb-2">Email</label>
+                            <input type="email" id="profile-email" class="w-full p-2 bg-gray-700 border border-gray-600 rounded-lg text-gray-400 cursor-not-allowed focus:outline-none" disabled>
+                        </div>
+                        <div class="mt-6">
+                            <h3 class="font-medium text-white mb-2">Change Password</h3>
+                            <div class="mb-4">
+                                <label for="current-password" class="block text-sm font-medium text-gray-300 mb-2">Current Password</label>
+                                <input type="password" id="current-password" class="w-full p-2 bg-gray-700 border border-gray-600 rounded-lg text-gray-200 focus:outline-none focus:ring-2 focus:ring-purple-600">
+                            </div>
+                            <div class="mb-4">
+                                <label for="new-password" class="block text-sm font-medium text-gray-300 mb-2">New Password</label>
+                                <input type="password" id="new-password" class="w-full p-2 bg-gray-700 border border-gray-600 rounded-lg text-gray-200 focus:outline-none focus:ring-2 focus:ring-purple-600" minlength="6">
+                            </div>
+                            <div class="mb-4">
+                                <label for="confirm-new-password" class="block text-sm font-medium text-gray-300 mb-2">Confirm New Password</label>
+                                <input type="password" id="confirm-new-password" class="w-full p-2 bg-gray-700 border border-gray-600 rounded-lg text-gray-200 focus:outline-none focus:ring-2 focus:ring-purple-600" minlength="6">
+                            </div>
+                        </div>
+                        <button type="submit" class="w-full bg-purple-600 hover:bg-purple-700 text-white py-2 rounded-lg transition mt-4 font-medium">Save Changes</button>
+                    </form>
+                    <div class="mt-4">
+                        <button id="delete-account-btn" class="w-full bg-red-600 hover:bg-red-700 text-white py-2 rounded-lg transition font-medium">Delete Account</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Chat Loader (shown before chat loads) -->
+            <div id="chat-loader" class="fixed inset-0 bg-gray-900 bg-opacity-90 flex items-center justify-center hidden">
+                <div class="loader"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Firebase Configuration and App Logic -->
+    <script>
+        // Initialize Firebase with your config
+        const firebaseConfig = {
+            apiKey: "AIzaSyDEXAMPLEEXAMPLEEXAMPLE",
+            authDomain: "your-project-id.firebaseapp.com",
+            projectId: "your-project-id",
+            storageBucket: "your-project-id.appspot.com",
+            messagingSenderId: "1234567890",
+            appId: "1:1234567890:web:abcdef1234567890"
+        };
+        
+        // Initialize Firebase
+        firebase.initializeApp(firebaseConfig);
+        
+        const auth = firebase.auth();
+        const db = firebase.firestore();
+        const storage = firebase.storage();
+
+        // Global variables
+        let currentUser = null;
+        let currentRoomId = null;
+        let typingTimeout = null;
+        let isTyping = false;
+
+        // Wait for DOM to load
+        document.addEventListener('DOMContentLoaded', function() {
+            // Show initial loader for 3 seconds
+            setTimeout(() => {
+                document.getElementById('initial-loader').style.display = 'none';
+                document.getElementById('app-container').classList.remove('hidden');
+                
+                // Check auth state
+                checkAuthState();
+            }, 3000);
+
+            // Set up event listeners
+            setupEventListeners();
+        });
+
+        // Set up event listeners
+        function setupEventListeners() {
+            // Auth forms
+            document.getElementById('login-form').addEventListener('submit', handleLogin);
+            document.getElementById('register-form').addEventListener('submit', handleRegister);
+            document.getElementById('forgot-password').addEventListener('click', handleForgotPassword);
+            
+            // Form switching
+            document.getElementById('switch-to-register').addEventListener('click', () => {
+                document.getElementById('login-form').classList.add('hidden');
+                document.getElementById('register-form').classList.remove('hidden');
+            });
+            
+            document.getElementById('switch-to-login').addEventListener('click', () => {
+                document.getElementById('register-form').classList.add('hidden');
+                document.getElementById('login-form').classList.remove('hidden');
+            });
+            
+            // User menu
+            document.getElementById('user-dropdown-btn').addEventListener('click', toggleUserDropdown);
+            document.getElementById('logout-link').addEventListener('click', handleLogout);
+            document.getElementById('profile-link').addEventListener('click', openProfileModal);
+            document.addEventListener('click', closeUserDropdown);
+            
+            // Chat functions
+            document.getElementById('menu-button').addEventListener('click', toggleSidebar);
+            document.getElementById('send-btn').addEventListener('click', sendMessage);
+            document.getElementById('message-input').addEventListener('keypress', function(e) {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    sendMessage();
+                }
+            });
+            document.getElementById('message-input').addEventListener('input', handleTyping);
+            
+            // File upload
+            document.getElementById('image-upload-btn').addEventListener('click', () => document.getElementById('image-input').click());
+            document.getElementById('file-upload-btn').addEventListener('click', () => document.getElementById('file-input').click());
+            document.getElementById('image-input').addEventListener('change', handleImageUpload);
+            document.getElementById('file-input').addEventListener('change', handleFileUpload);
+            document.getElementById('cancel-upload').addEventListener('click', cancelFileUpload);
+            
+            // Profile modal
+            document.getElementById('close-profile-modal').addEventListener('click', () => document.getElementById('profile-modal').classList.add('hidden'));
+            document.getElementById('profile-form').addEventListener('submit', updateProfile);
+            document.getElementById('delete-account-btn').addEventListener('click', confirmAccountDeletion);
+            document.getElementById('change-avatar').addEventListener('click', () => document.getElementById('avatar-input').click());
+            document.getElementById('avatar-input').addEventListener('change', handleAvatarUpload);
+        }
+
+        // Handle login
+        function handleLogin(e) {
+            e.preventDefault();
+            const email = document.getElementById('login-email').value;
+            const password = document.getElementById('login-password').value;
+            
+            auth.signInWithEmailAndPassword(email, password)
+                .then(() => {
+                    // Show chat loader before transitioning
+                    document.getElementById('chat-loader').classList.remove('hidden');
+                    
+                    setTimeout(() => {
+                        document.getElementById('auth-screen').classList.add('hidden');
+                        document.getElementById('chat-app').classList.remove('hidden');
+                        document.getElementById('chat-loader').classList.add('hidden');
+                    }, 3000);
+                })
+                .catch(error => {
+                    showError('Login failed: ' + error.message);
+                });
+        }
+
+        // Handle registration
+        function handleRegister(e) {
+            e.preventDefault();
+            const username = document.getElementById('register-username').value;
+            const email = document.getElementById('register-email').value;
+            const password = document.getElementById('register-password').value;
+            const confirmPassword = document.getElementById('register-confirm-password').value;
+            
+            if (password !== confirmPassword) {
+                showError('Passwords do not match');
+                return;
+            }
+            
+            auth.createUserWithEmailAndPassword(email, password)
+                .then(userCredential => {
+                    // Save user data to Firestore
+                    return db.collection('users').doc(userCredential.user.uid).set({
+                        username: username,
+                        email: email,
+                        createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+                        status: 'online'
+                    });
+                })
+                .then(() => {
+                    // Show chat loader before transitioning
+                    document.getElementById('chat-loader').classList.remove('hidden');
+                    
+                    setTimeout(() => {
+                        document.getElementById('auth-screen').classList.add('hidden');
+                        document.getElementById('chat-app').classList.remove('hidden');
+                        document.getElementById('chat-loader').classList.add('hidden');
+                    }, 3000);
+                })
+                .catch(error => {
+                    showError('Registration failed: ' + error.message);
+                });
+        }
+
+        // Check authentication state
+        function checkAuthState() {
+            auth.onAuthStateChanged(user => {
+                if (user) {
+                    currentUser = user;
+                    setupUser(user);
+                    document.getElementById('auth-screen').classList.add('hidden');
+                    
+                    // Show chat loader before showing chat
+                    document.getElementById('chat-loader').classList.remove('hidden');
+                    setTimeout(() => {
+                        document.getElementById('chat-app').classList.remove('hidden');
+                        document.getElementById('chat-loader').classList.add('hidden');
+                    }, 3000);
+                } else {
+                    currentUser = null;
+                    document.getElementById('auth-screen').classList.remove('hidden');
+                    document.getElementById('chat-app').classList.add('hidden');
+                }
+            });
+        }
+
+        // Set up user data
+        function setupUser(user) {
+            document.getElementById('username-display').textContent = user.email.split('@')[0];
+            
+            // Load user profile data
+            db.collection('users').doc(user.uid).get().then(doc => {
+                if (doc.exists) {
+                    const userData = doc.data();
+                    if (userData.username) {
+                        document.getElementById('username-display').textContent = userData.username;
+                        document.getElementById('profile-username').value = userData.username;
+                    }
+                }
+            });
+        }
+
+        // Toggle user dropdown
+        function toggleUserDropdown(e) {
+            e.stopPropagation();
+            document.getElementById('user-dropdown').classList.toggle('hidden');
+        }
+
+        // Close user dropdown
+        function closeUserDropdown(e) {
+            if (!document.getElementById('user-dropdown').contains(e.target) && 
+                e.target !== document.getElementById('user-dropdown-btn')) {
+                document.getElementById('user-dropdown').classList.add('hidden');
+            }
+        }
+
+        // Toggle sidebar
+        function toggleSidebar() {
+            document.getElementById('sidebar').classList.toggle('active');
+        }
+
+        // Open profile modal
+        function openProfileModal(e) {
+            e.preventDefault();
+            if (!currentUser) return;
+            
+            // Populate profile data
+            document.getElementById('profile-email').value = currentUser.email;
+            db.collection('users').doc(currentUser.uid).get().then(doc => {
+                if (doc.exists) {
+                    const userData = doc.data();
+                    if (userData.username) {
+                        document.getElementById('profile-username').value = userData.username;
+                    }
+                }
+            });
+            
+            document.getElementById('profile-modal').classList.remove('hidden');
+            document.getElementById('user-dropdown').classList.add('hidden');
+        }
+
+        // Update profile
+        function updateProfile(e) {
+            e.preventDefault();
+            if (!currentUser) return;
+            
+            const username = document.getElementById('profile-username').value;
+            const currentPassword = document.getElementById('current-password').value;
+            const newPassword = document.getElementById('new-password').value;
+            const confirmNewPassword = document.getElementById('confirm-new-password').value;
+            
+            const promises = [];
+            
+            // Update username
+            promises.push(
+                db.collection('users').doc(currentUser.uid).update({
+                    username: username
+                })
+            );
+            
+            document.getElementById('username-display').textContent = username;
+            
+            // Update password if provided
+            if (newPassword && newPassword === confirmNewPassword) {
+                if (!currentPassword) {
+                    showError('Please enter your current password to change password');
+                    return;
+                }
+                
+                const credential = firebase.auth.EmailAuthProvider.credential(
+                    currentUser.email,
+                    currentPassword
+                );
+                
+                promises.push(
+                    currentUser.reauthenticateWithCredential(credential).then(() => {
+                        return currentUser.updatePassword(newPassword);
+                    })
+                );
+            }
+            
+            Promise.all(promises)
+                .then(() => {
+                    showSuccess('Profile updated successfully');
+                    document.getElementById('profile-modal').classList.add('hidden');
+                })
+                .catch(error => {
+                    showError('Error updating profile: ' + error.message);
+                });
+        }
+
+        // Handle logout
+        function handleLogout(e) {
+            e.preventDefault();
+            auth.signOut();
+        }
+
+        // Confirm account deletion
+        function confirmAccountDeletion() {
+            if (confirm('Are you sure you want to delete your account? This action cannot be undone.')) {
+                deleteAccount();
+            }
+        }
+
+        // Delete account
+        function deleteAccount() {
+            if (!currentUser) return;
+            
+            auth.currentUser.delete()
+                .then(() => {
+                    // Delete user data from Firestore
+                    return db.collection('users').doc(currentUser.uid).delete();
+                })
+                .then(() => {
+                    showSuccess('Account deleted successfully');
+                })
+                .catch(error => {
+                    showError('Error deleting account: ' + error.message);
+                });
+        }
+
+        // Handle typing indicator
+        function handleTyping() {
+            if (!isTyping) {
+                isTyping = true;
+                // Send typing status to other users (implementation depends on your setup)
+            }
+            
+            clearTimeout(typingTimeout);
+            typingTimeout = setTimeout(() => {
+                isTyping = false;
+                // Clear typing status
+            }, 1000);
+        }
+
+        // Send message
+        function sendMessage() {
+            const messageText = document.getElementById('message-input').value.trim();
+            if (!messageText || !currentRoomId || !currentUser) return;
+            
+            // Implementation of message sending to Firebase
+            // ...
+            
+            document.getElementById('message-input').value = '';
+        }
+
+        // Handle image upload
+        function handleImageUpload(e) {
+            // Implementation of image upload to Firebase Storage
+            // ...
+        }
+
+        // Handle file upload
+        function handleFileUpload(e) {
+            // Implementation of file upload to Firebase Storage
+            // ...
+        }
+
+        // Cancel file upload
+        function cancelFileUpload() {
+            document.getElementById('file-input').value = '';
+            document.getElementById('image-input').value = '';
+            document.getElementById('file-preview').classList.add('hidden');
+        }
+
+        // Handle avatar upload
+        function handleAvatarUpload(e) {
+            // Implementation of avatar upload to Firebase Storage
+            // ...
+        }
+
+        // Show error message
+        function showError(message) {
+            alert('Error: ' + message); // Replace with a better error display
+        }
+
+        // Show success message
+        function showSuccess(message) {
+            alert('Success: ' + message); // Replace with a better success display
+        }
+    </script>
+</body>
+</html>
