@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>FireChat - Dark Theme Chat</title>
+    <title>FireChat - Enhanced Dark Theme Chat</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
         tailwind.config = {
@@ -98,6 +98,32 @@
             display: inline-block;
             margin-right: 5px;
         }
+
+        .search-results {
+            max-height: 300px;
+            overflow-y: auto;
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        .notification-badge {
+            position: absolute;
+            top: -8px;
+            right: -8px;
+            background-color: #EF4444;
+            color: white;
+            font-size: 0.75rem;
+            padding: 0.25rem 0.5rem;
+            border-radius: 9999px;
+            min-width: 1.25rem;
+            text-align: center;
+        }
         
         @media (max-width: 640px) {
             .sidebar {
@@ -108,6 +134,19 @@
             .sidebar.active {
                 transform: translateX(0);
             }
+            .sidebar-overlay {
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                background-color: rgba(0, 0, 0, 0.5);
+                z-index: 5;
+                display: none;
+            }
+            .sidebar-overlay.active {
+                display: block;
+            }
         }
     </style>
 </head>
@@ -116,6 +155,9 @@
     <div id="initial-loader" class="loader-container">
         <div class="loader"></div>
     </div>
+
+    <!-- Sidebar Overlay for mobile -->
+    <div id="sidebar-overlay" class="sidebar-overlay"></div>
 
     <!-- Main App (initially hidden) -->
     <div id="app-container" class="hidden">
@@ -209,7 +251,11 @@
                     <h1 class="text-xl font-bold">FireChat</h1>
                 </div>
                 <div class="flex items-center space-x-3">
-                    <span id="username-display" class="font-medium cursor-pointer"></span>
+                    <button id="notifications-btn" class="relative">
+                        <i class="fas fa-bell text-xl"></i>
+                        <span id="notification-badge" class="notification-badge hidden">0</span>
+                    </button>
+                    <span id="username-display" class="font-medium cursor-pointer hover:text-purple-400 transition"></span>
                     <div class="relative">
                         <button id="user-dropdown-btn">
                             <div class="w-8 h-8 rounded-full bg-purple-600 flex items-center justify-center text-white">
@@ -217,8 +263,19 @@
                             </div>
                         </button>
                         <div id="user-dropdown" class="hidden absolute right-0 mt-2 w-48 bg-gray-700 rounded-md shadow-lg py-1 z-20">
-                            <a href="#" id="profile-link" class="block px-4 py-2 text-gray-200 hover:bg-gray-600">Profile</a>
-                            <a href="#" id="logout-link" class="block px-4 py-2 text-gray-200 hover:bg-gray-600">Logout</a>
+                            <a href="#" id="profile-link" class="block px-4 py-2 text-gray-200 hover:bg-gray-600">
+                                <i class="fas fa-user mr-2"></i>Profile
+                            </a>
+                            <a href="#" id="settings-link" class="block px-4 py-2 text-gray-200 hover:bg-gray-600">
+                                <i class="fas fa-cog mr-2"></i>Settings
+                            </a>
+                            <a href="#" id="privacy-link" class="block px-4 py-2 text-gray-200 hover:bg-gray-600">
+                                <i class="fas fa-shield-alt mr-2"></i>Privacy
+                            </a>
+                            <hr class="border-gray-600 my-1">
+                            <a href="#" id="logout-link" class="block px-4 py-2 text-gray-200 hover:bg-gray-600">
+                                <i class="fas fa-sign-out-alt mr-2"></i>Logout
+                            </a>
                         </div>
                     </div>
                 </div>
@@ -226,21 +283,85 @@
 
             <!-- Main Content -->
             <div class="flex flex-1 overflow-hidden">
-                <!-- Sidebar -->
-                <div id="sidebar" class="sidebar bg-gray-800 w-64 border-r border-gray-700 flex flex-col md:relative fixed h-full">
+                <!-- Enhanced Sidebar -->
+                <div id="sidebar" class="sidebar bg-gray-800 w-80 border-r border-gray-700 flex flex-col md:relative fixed h-full">
+                    <!-- Sidebar Header with Tabs -->
                     <div class="p-4 border-b border-gray-700">
-                        <h2 class="text-lg font-semibold">Chat Rooms</h2>
+                        <div class="flex space-x-1 bg-gray-700 rounded-lg p-1 mb-4">
+                            <button id="chats-tab" class="flex-1 px-3 py-2 text-sm rounded-md bg-purple-600 text-white transition">Chats</button>
+                            <button id="contacts-tab" class="flex-1 px-3 py-2 text-sm rounded-md text-gray-300 hover:bg-gray-600 transition">Contacts</button>
+                            <button id="history-tab" class="flex-1 px-3 py-2 text-sm rounded-md text-gray-300 hover:bg-gray-600 transition">History</button>
+                        </div>
+                        
+                        <!-- Search with Advanced Options -->
+                        <div class="relative">
+                            <input type="text" id="search-input" class="w-full px-3 py-2 pl-10 bg-gray-700 border border-gray-600 rounded-lg text-gray-200 focus:outline-none focus:ring-2 focus:ring-purple-600" placeholder="Search chats, contacts...">
+                            <i class="fas fa-search absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"></i>
+                            <button id="search-filter-btn" class="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-purple-400">
+                                <i class="fas fa-filter"></i>
+                            </button>
+                        </div>
+                        
+                        <!-- Search Filters Dropdown -->
+                        <div id="search-filters" class="hidden mt-2 bg-gray-700 rounded-lg p-3">
+                            <div class="flex flex-wrap gap-2">
+                                <button class="search-filter px-2 py-1 text-xs bg-gray-600 rounded hover:bg-purple-600" data-filter="all">All</button>
+                                <button class="search-filter px-2 py-1 text-xs bg-gray-600 rounded hover:bg-purple-600" data-filter="friends">Friends</button>
+                                <button class="search-filter px-2 py-1 text-xs bg-gray-600 rounded hover:bg-purple-600" data-filter="groups">Groups</button>
+                                <button class="search-filter px-2 py-1 text-xs bg-gray-600 rounded hover:bg-purple-600" data-filter="unread">Unread</button>
+                            </div>
+                        </div>
                     </div>
-                    <div class="p-4 border-b border-gray-700">
-                        <input type="text" id="search-users-input" class="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-gray-200 focus:outline-none focus:ring-2 focus:ring-purple-600" placeholder="Search users...">
-                    </div>
-                    <div class="flex-1 overflow-y-auto p-2" id="rooms-list">
-                        <!-- Rooms will be populated here -->
-                    </div>
-                    <div class="p-4 border-t border-gray-700">
-                        <h2 class="text-lg font-semibold mb-2">Online Users</h2>
-                        <div class="space-y-2" id="online-users">
-                            <!-- Online users will be populated here -->
+
+                    <!-- Tab Contents -->
+                    <div class="flex-1 overflow-y-auto">
+                        <!-- Chats Tab Content -->
+                        <div id="chats-content" class="tab-content active p-2">
+                            <div id="recent-chats" class="space-y-1">
+                                <!-- Recent chats will be populated here -->
+                            </div>
+                            <div id="chat-rooms" class="mt-4">
+                                <h3 class="px-3 py-2 text-sm font-semibold text-gray-400 uppercase tracking-wider">Public Rooms</h3>
+                                <div id="rooms-list" class="space-y-1">
+                                    <!-- Rooms will be populated here -->
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Contacts Tab Content -->
+                        <div id="contacts-content" class="tab-content p-2">
+                            <div class="mb-4">
+                                <button id="add-contact-btn" class="w-full flex items-center justify-center p-2 bg-purple-600 hover:bg-purple-700 rounded-lg transition">
+                                    <i class="fas fa-user-plus mr-2"></i>Add Contact
+                                </button>
+                            </div>
+                            <div id="contacts-list" class="space-y-1">
+                                <!-- Contacts will be populated here -->
+                            </div>
+                            <div class="mt-6">
+                                <h3 class="px-3 py-2 text-sm font-semibold text-gray-400 uppercase tracking-wider">Online Users</h3>
+                                <div id="online-users" class="space-y-1">
+                                    <!-- Online users will be populated here -->
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- History Tab Content -->
+                        <div id="history-content" class="tab-content p-2">
+                            <div class="mb-4 flex space-x-2">
+                                <select id="history-filter" class="flex-1 px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-gray-200">
+                                    <option value="all">All History</option>
+                                    <option value="today">Today</option>
+                                    <option value="week">This Week</option>
+                                    <option value="month">This Month</option>
+                                </select>
+                                <button id="clear-history-btn" class="px-3 py-2 bg-red-600 hover:bg-red-700 rounded-lg transition">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                            </div>
+                            <div id="chat-history" class="space-y-1">
+                                <!-- Chat history will be populated here -->
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -248,17 +369,36 @@
                 <!-- Chat Area -->
                 <div class="flex-1 flex flex-col bg-gray-900">
                     <!-- Chat Header -->
-                    <div class="p-4 border-b border-gray-800 flex items-center">
-                        <h2 id="current-room" class="text-lg font-semibold">Select a room to start chatting</h2>
-                        <div id="typing-indicator" class="typing-indicator"></div>
+                    <div class="p-4 border-b border-gray-800 flex items-center justify-between">
+                        <div class="flex items-center">
+                            <h2 id="current-room" class="text-lg font-semibold">Select a room to start chatting</h2>
+                            <div id="typing-indicator" class="typing-indicator ml-3">
+                                <i class="fas fa-circle text-xs animate-pulse"></i>
+                                <span class="ml-1">Someone is typing...</span>
+                            </div>
+                        </div>
+                        <div class="flex items-center space-x-2">
+                            <button id="video-call-btn" class="p-2 text-gray-400 hover:text-green-400 transition" title="Video Call">
+                                <i class="fas fa-video"></i>
+                            </button>
+                            <button id="voice-call-btn" class="p-2 text-gray-400 hover:text-blue-400 transition" title="Voice Call">
+                                <i class="fas fa-phone"></i>
+                            </button>
+                            <button id="chat-info-btn" class="p-2 text-gray-400 hover:text-purple-400 transition" title="Chat Info">
+                                <i class="fas fa-info-circle"></i>
+                            </button>
+                        </div>
                     </div>
 
                     <!-- Messages Container -->
                     <div class="chat-container overflow-y-auto p-4 flex-1 bg-gray-900" id="messages-container">
                         <div class="flex items-center justify-center h-full text-gray-500" id="empty-state">
                             <div class="text-center">
-                                <img src="https://placehold.co/300x200?text=Select+a+room" alt="Empty chat screen illustration showing speech bubbles and a smiling character" class="mx-auto mb-4 rounded-lg" />
-                                <p class="text-lg">Select a chat room or start a new conversation</p>
+                                <div class="w-32 h-32 mx-auto mb-4 bg-gray-700 rounded-full flex items-center justify-center">
+                                    <i class="fas fa-comments text-4xl text-gray-500"></i>
+                                </div>
+                                <p class="text-lg mb-2">Select a chat room or start a new conversation</p>
+                                <p class="text-sm text-gray-600">Choose from your existing conversations or start a new one</p>
                             </div>
                         </div>
                     </div>
@@ -273,21 +413,27 @@
                                 </button>
                             </div>
                         </div>
-                        <div class="flex">
-                            <div class="flex-1 mr-2 relative">
-                                <textarea id="message-input" class="message-input w-full bg-gray-700 border border-gray-600 rounded-lg p-2 text-gray-200 focus:outline-none focus:ring-2 focus:ring-purple-600" placeholder="Type your message..."></textarea>
-                                <div class="absolute right-2 bottom-2 flex space-x-1">
-                                    <button id="image-upload-btn" class="text-gray-400 hover:text-purple-500">
+                        <div class="flex items-end space-x-2">
+                            <div class="flex-1 relative">
+                                <textarea id="message-input" class="message-input w-full bg-gray-700 border border-gray-600 rounded-lg p-3 pr-20 text-gray-200 focus:outline-none focus:ring-2 focus:ring-purple-600 resize-none" placeholder="Type your message..." rows="1"></textarea>
+                                <div class="absolute right-3 bottom-3 flex space-x-1">
+                                    <button id="emoji-btn" class="text-gray-400 hover:text-yellow-500 transition" title="Emoji">
+                                        <i class="fas fa-smile"></i>
+                                    </button>
+                                    <button id="image-upload-btn" class="text-gray-400 hover:text-purple-500 transition" title="Image">
                                         <i class="fas fa-image"></i>
                                     </button>
-                                    <button id="file-upload-btn" class="text-gray-400 hover:text-purple-500">
+                                    <button id="file-upload-btn" class="text-gray-400 hover:text-purple-500 transition" title="File">
                                         <i class="fas fa-paperclip"></i>
+                                    </button>
+                                    <button id="voice-message-btn" class="text-gray-400 hover:text-green-500 transition" title="Voice Message">
+                                        <i class="fas fa-microphone"></i>
                                     </button>
                                 </div>
                                 <input type="file" id="image-input" class="hidden" accept="image/*" />
                                 <input type="file" id="file-input" class="hidden" accept="*" />
                             </div>
-                            <button id="send-btn" class="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg transition">
+                            <button id="send-btn" class="bg-purple-600 hover:bg-purple-700 text-white px-4 py-3 rounded-lg transition">
                                 <i class="fas fa-paper-plane"></i>
                             </button>
                         </div>
@@ -295,8 +441,205 @@
                 </div>
             </div>
 
+            <!-- Enhanced Settings Modal -->
+            <div id="settings-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center hidden z-50">
+                <div class="bg-gray-800 rounded-lg p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+                    <div class="flex justify-between items-center mb-6">
+                        <h2 class="text-2xl font-bold text-white">Settings</h2>
+                        <button id="close-settings-modal" class="text-gray-400 hover:text-gray-300">
+                            <i class="fas fa-times text-xl"></i>
+                        </button>
+                    </div>
+
+                    <!-- Settings Tabs -->
+                    <div class="flex space-x-1 bg-gray-700 rounded-lg p-1 mb-6">
+                        <button class="settings-tab flex-1 px-4 py-2 text-sm rounded-md bg-purple-600 text-white" data-tab="general">General</button>
+                        <button class="settings-tab flex-1 px-4 py-2 text-sm rounded-md text-gray-300 hover:bg-gray-600" data-tab="notifications">Notifications</button>
+                        <button class="settings-tab flex-1 px-4 py-2 text-sm rounded-md text-gray-300 hover:bg-gray-600" data-tab="privacy">Privacy</button>
+                        <button class="settings-tab flex-1 px-4 py-2 text-sm rounded-md text-gray-300 hover:bg-gray-600" data-tab="appearance">Appearance</button>
+                    </div>
+
+                    <!-- General Settings -->
+                    <div id="general-settings" class="settings-content">
+                        <h3 class="text-lg font-semibold mb-4 text-white">General Settings</h3>
+                        <div class="space-y-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-300 mb-2">Language</label>
+                                <select id="language-select" class="w-full p-3 bg-gray-700 border border-gray-600 rounded-lg text-gray-200">
+                                    <option value="en">English</option>
+                                    <option value="es">Spanish</option>
+                                    <option value="fr">French</option>
+                                    <option value="de">German</option>
+                                </select>
+                            </div>
+                            <div class="flex items-center justify-between">
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-300">Auto-save Chat History</label>
+                                    <p class="text-xs text-gray-500">Automatically save your chat history</p>
+                                </div>
+                                <label class="relative inline-flex items-center cursor-pointer">
+                                    <input type="checkbox" id="auto-save-history" class="sr-only peer">
+                                    <div class="w-11 h-6 bg-gray-600 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-purple-600"></div>
+                                </label>
+                            </div>
+                            <div class="flex items-center justify-between">
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-300">Enter to Send</label>
+                                    <p class="text-xs text-gray-500">Press Enter to send messages</p>
+                                </div>
+                                <label class="relative inline-flex items-center cursor-pointer">
+                                    <input type="checkbox" id="enter-to-send" class="sr-only peer" checked>
+                                    <div class="w-11 h-6 bg-gray-600 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-purple-600"></div>
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Notification Settings -->
+                    <div id="notifications-settings" class="settings-content hidden">
+                        <h3 class="text-lg font-semibold mb-4 text-white">Notification Settings</h3>
+                        <div class="space-y-4">
+                            <div class="flex items-center justify-between">
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-300">Desktop Notifications</label>
+                                    <p class="text-xs text-gray-500">Show desktop notifications for new messages</p>
+                                </div>
+                                <label class="relative inline-flex items-center cursor-pointer">
+                                    <input type="checkbox" id="desktop-notifications" class="sr-only peer">
+                                    <div class="w-11 h-6 bg-gray-600 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-purple-600"></div>
+                                </label>
+                            </div>
+                            <div class="flex items-center justify-between">
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-300">Sound Notifications</label>
+                                    <p class="text-xs text-gray-500">Play sound for new messages</p>
+                                </div>
+                                <label class="relative inline-flex items-center cursor-pointer">
+                                    <input type="checkbox" id="sound-notifications" class="sr-only peer" checked>
+                                    <div class="w-11 h-6 bg-gray-600 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-purple-600"></div>
+                                </label>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-300 mb-2">Notification Sound</label>
+                                <select id="notification-sound" class="w-full p-3 bg-gray-700 border border-gray-600 rounded-lg text-gray-200">
+                                    <option value="default">Default</option>
+                                    <option value="chime">Chime</option>
+                                    <option value="ding">Ding</option>
+                                    <option value="pop">Pop</option>
+                                </select>
+                            </div>
+                            <div class="flex items-center justify-between">
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-300">Message Previews</label>
+                                    <p class="text-xs text-gray-500">Show message content in notifications</p>
+                                </div>
+                                <label class="relative inline-flex items-center cursor-pointer">
+                                    <input type="checkbox" id="message-previews" class="sr-only peer" checked>
+                                    <div class="w-11 h-6 bg-gray-600 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-purple-600"></div>
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Privacy Settings -->
+                    <div id="privacy-settings" class="settings-content hidden">
+                        <h3 class="text-lg font-semibold mb-4 text-white">Privacy Settings</h3>
+                        <div class="space-y-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-300 mb-2">Who can see you're online</label>
+                                <select id="online-status-visibility" class="w-full p-3 bg-gray-700 border border-gray-600 rounded-lg text-gray-200">
+                                    <option value="everyone">Everyone</option>
+                                    <option value="contacts">Contacts Only</option>
+                                    <option value="nobody">Nobody</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-300 mb-2">Who can send you messages</label>
+                                <select id="message-privacy" class="w-full p-3 bg-gray-700 border border-gray-600 rounded-lg text-gray-200">
+                                    <option value="everyone">Everyone</option>
+                                    <option value="contacts">Contacts Only</option>
+                                </select>
+                            </div>
+                            <div class="flex items-center justify-between">
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-300">Read Receipts</label>
+                                    <p class="text-xs text-gray-500">Let others know when you've read their messages</p>
+                                </div>
+                                <label class="relative inline-flex items-center cursor-pointer">
+                                    <input type="checkbox" id="read-receipts" class="sr-only peer" checked>
+                                    <div class="w-11 h-6 bg-gray-600 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-purple-600"></div>
+                                </label>
+                            </div>
+                            <div class="flex items-center justify-between">
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-300">Typing Indicators</label>
+                                    <p class="text-xs text-gray-500">Show when you're typing</p>
+                                </div>
+                                <label class="relative inline-flex items-center cursor-pointer">
+                                    <input type="checkbox" id="typing-indicators" class="sr-only peer" checked>
+                                    <div class="w-11 h-6 bg-gray-600 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-purple-600"></div>
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Appearance Settings -->
+                    <div id="appearance-settings" class="settings-content hidden">
+                        <h3 class="text-lg font-semibold mb-4 text-white">Appearance Settings</h3>
+                        <div class="space-y-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-300 mb-2">Theme</label>
+                                <div class="grid grid-cols-2 gap-3">
+                                    <button class="theme-option p-3 bg-gray-900 border-2 border-purple-600 rounded-lg text-center" data-theme="dark">
+                                        <div class="w-8 h-8 bg-gray-800 rounded mx-auto mb-2"></div>
+                                        <span class="text-sm">Dark</span>
+                                    </button>
+                                    <button class="theme-option p-3 bg-gray-700 border-2 border-gray-600 rounded-lg text-center" data-theme="light">
+                                        <div class="w-8 h-8 bg-white rounded mx-auto mb-2"></div>
+                                        <span class="text-sm">Light</span>
+                                    </button>
+                                </div>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-300 mb-2">Font Size</label>
+                                <select id="font-size" class="w-full p-3 bg-gray-700 border border-gray-600 rounded-lg text-gray-200">
+                                    <option value="small">Small</option>
+                                    <option value="medium" selected>Medium</option>
+                                    <option value="large">Large</option>
+                                    <option value="extra-large">Extra Large</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-300 mb-2">Chat Background</label>
+                                <div class="grid grid-cols-4 gap-2">
+                                    <button class="bg-option w-full h-12 bg-gray-900 border-2 border-purple-600 rounded" data-bg="default"></button>
+                                    <button class="bg-option w-full h-12 bg-blue-900 border-2 border-gray-600 rounded" data-bg="blue"></button>
+                                    <button class="bg-option w-full h-12 bg-green-900 border-2 border-gray-600 rounded" data-bg="green"></button>
+                                    <button class="bg-option w-full h-12 bg-purple-900 border-2 border-gray-600 rounded" data-bg="purple"></button>
+                                </div>
+                            </div>
+                            <div class="flex items-center justify-between">
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-300">Compact Mode</label>
+                                    <p class="text-xs text-gray-500">Reduce spacing for more content</p>
+                                </div>
+                                <label class="relative inline-flex items-center cursor-pointer">
+                                    <input type="checkbox" id="compact-mode" class="sr-only peer">
+                                    <div class="w-11 h-6 bg-gray-600 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-purple-600"></div>
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="mt-6 flex space-x-3">
+                        <button id="save-settings-btn" class="flex-1 bg-purple-600 hover:bg-purple-700 text-white py-2 rounded-lg transition font-medium">Save Settings</button>
+                        <button id="reset-settings-btn" class="px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white rounded-lg transition font-medium">Reset</button>
+                    </div>
+                </div>
+            </div>
+
             <!-- Profile Modal -->
-            <div id="profile-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center hidden">
+            <div id="profile-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center hidden z-50">
                 <div class="bg-gray-800 rounded-lg p-6 w-full max-w-md">
                     <div class="flex justify-between items-center mb-4">
                         <h2 class="text-xl font-bold text-white">Profile Settings</h2>
@@ -306,7 +649,7 @@
                     </div>
                     <div class="mb-6 flex justify-center">
                         <div class="relative">
-                            <div class="w-32 h-32 rounded-full bg-gray-700 flex items-center justify-center text-gray-400">
+                            <div id="profile-avatar" class="w-32 h-32 rounded-full bg-gray-700 flex items-center justify-center text-gray-400">
                                 <i class="fas fa-user text-4xl"></i>
                             </div>
                             <button id="change-avatar" class="absolute bottom-0 right-0 bg-purple-600 hover:bg-purple-700 text-white rounded-full w-8 h-8 flex items-center justify-center">
@@ -323,6 +666,10 @@
                         <div class="mb-4">
                             <label for="profile-email" class="block text-sm font-medium text-gray-300 mb-2">Email</label>
                             <input type="email" id="profile-email" class="w-full p-2 bg-gray-700 border border-gray-600 rounded-lg text-gray-400 cursor-not-allowed focus:outline-none" disabled>
+                        </div>
+                        <div class="mb-4">
+                            <label for="profile-status" class="block text-sm font-medium text-gray-300 mb-2">Status Message</label>
+                            <input type="text" id="profile-status" class="w-full p-2 bg-gray-700 border border-gray-600 rounded-lg text-gray-200 focus:outline-none focus:ring-2 focus:ring-purple-600" placeholder="What's on your mind?">
                         </div>
                         <div class="mt-6">
                             <h3 class="font-medium text-white mb-2">Change Password</h3>
@@ -347,35 +694,60 @@
                 </div>
             </div>
 
-            <!-- Chat Loader (shown before chat loads) -->
+            <!-- Add Contact Modal -->
+            <div id="add-contact-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center hidden z-50">
+                <div class="bg-gray-800 rounded-lg p-6 w-full max-w-md">
+                    <div class="flex justify-between items-center mb-4">
+                        <h2 class="text-xl font-bold text-white">Add New Contact</h2>
+                        <button id="close-add-contact-modal" class="text-gray-400 hover:text-gray-300">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </div>
+                    <form id="add-contact-form">
+                        <div class="mb-4">
+                            <label for="contact-email" class="block text-sm font-medium text-gray-300 mb-2">Email or Username</label>
+                            <input type="text" id="contact-email" class="w-full p-3 bg-gray-700 border border-gray-600 rounded-lg text-gray-200 focus:outline-none focus:ring-2 focus:ring-purple-600" required>
+                        </div>
+                        <div class="mb-4">
+                            <label for="contact-message" class="block text-sm font-medium text-gray-300 mb-2">Message (Optional)</label>
+                            <textarea id="contact-message" class="w-full p-3 bg-gray-700 border border-gray-600 rounded-lg text-gray-200 focus:outline-none focus:ring-2 focus:ring-purple-600" placeholder="Hi, I'd like to add you as a contact!" rows="3"></textarea>
+                        </div>
+                        <button type="submit" class="w-full bg-purple-600 hover:bg-purple-700 text-white py-2 rounded-lg transition font-medium">Send Request</button>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Emoji Picker -->
+            <div id="emoji-picker" class="absolute bottom-16 right-4 bg-gray-700 rounded-lg p-4 hidden z-30 w-72">
+                <div class="grid grid-cols-8 gap-2 max-h-48 overflow-y-auto">
+                    <!-- Emojis will be populated here -->
+                </div>
+            </div>
+
+            <!-- Chat Loader -->
             <div id="chat-loader" class="fixed inset-0 bg-gray-900 bg-opacity-90 flex items-center justify-center hidden">
                 <div class="loader"></div>
             </div>
         </div>
     </div>
 
-    <!-- Placeholder for a video element (replace with your actual video player) -->
-    <!-- For demonstration, this video will be paused when the profile modal closes -->
+    <!-- Demo media elements -->
     <video id="myDemoVideo" src="https://www.w3schools.com/html/mov_bbb.mp4" controls loop muted style="display:none;"></video>
-
-    <!-- Placeholder for an audio element (replace with your actual audio player) -->
-    <!-- For demonstration, this audio will be paused when the tab is hidden -->
     <audio id="myDemoAudio" src="https://www.w3schools.com/html/horse.mp3" loop style="display:none;"></audio>
 
     <!-- Firebase Configuration and App Logic -->
     <script>
         // Initialize Firebase with your config
         const firebaseConfig = {
-  apiKey: "AIzaSyB5B4QX1tUIw0lSYsjy-HW7pvHOe4nMmL4",
-  authDomain: "website-1f91d.firebaseapp.com",
-  projectId: "website-1f91d",
-  storageBucket: "website-1f91d.firebasestorage.app",
-  messagingSenderId: "176653839690",
-  appId: "1:176653839690:web:55bec54b6f2d3895c9e5b3",
-  measurementId: "G-F5TKYBL0R2"
-};
+            apiKey: "AIzaSyB5B4QX1tUIw0lSYsjy-HW7pvHOe4nMmL4",
+            authDomain: "website-1f91d.firebaseapp.com",
+            projectId: "website-1f91d",
+            storageBucket: "website-1f91d.firebasestorage.app",
+            messagingSenderId: "176653839690",
+            appId: "1:176653839690:web:55bec54b6f2d3895c9e5b3",
+            measurementId: "G-F5TKYBL0R2"
+        };
         
-        // Initialize Firebase
         firebase.initializeApp(firebaseConfig);
         
         const auth = firebase.auth();
@@ -387,29 +759,46 @@
         let currentRoomId = null;
         let typingTimeout = null;
         let isTyping = false;
-        let allUsers = []; // To store all registered users for search
+        let allUsers = [];
+        let contacts = [];
+        let chatHistory = [];
+        let currentSearchFilter = 'all';
+        let userSettings = {
+            language: 'en',
+            autoSaveHistory: true,
+            enterToSend: true,
+            desktopNotifications: false,
+            soundNotifications: true,
+            messagePreview: true,
+            onlineStatusVisibility: 'everyone',
+            messagePrivacy: 'everyone',
+            readReceipts: true,
+            typingIndicators: true,
+            theme: 'dark',
+            fontSize: 'medium',
+            chatBackground: 'default',
+            compactMode: false
+        };
 
-        // Get references to the new media elements
         const myDemoVideo = document.getElementById('myDemoVideo');
         const myDemoAudio = document.getElementById('myDemoAudio');
 
-        // Wait for DOM to load
+        // Common emojis for picker
+        const emojis = ['😀', '😂', '🤣', '😍', '😘', '😊', '😎', '🤔', '😢', '😭', '😡', '👍', '👎', '👏', '🙌', '❤️', '💕', '💯', '🔥', '⭐', '🎉', '🚀', '💡', '⚡', '🌟', '🎵', '📱', '💻', '🎮', '⚽', '🏀', '🍕', '🍔', '🍰', '☕', '🌈', '🌞', '🌙', '🎯', '🎪'];
+
         document.addEventListener('DOMContentLoaded', function() {
-            // Show initial loader for 3 seconds
             setTimeout(() => {
                 document.getElementById('initial-loader').style.display = 'none';
                 document.getElementById('app-container').classList.remove('hidden');
-                
-                // Check auth state
                 checkAuthState();
             }, 3000);
 
-            // Set up event listeners
             setupEventListeners();
-            setupMediaListeners(); // Call the new media listeners setup
+            setupMediaListeners();
+            initializeEmojiPicker();
+            loadUserSettings();
         });
 
-        // Set up event listeners
         function setupEventListeners() {
             // Auth forms
             document.getElementById('login-form').addEventListener('submit', handleLogin);
@@ -431,25 +820,43 @@
             document.getElementById('user-dropdown-btn').addEventListener('click', toggleUserDropdown);
             document.getElementById('logout-link').addEventListener('click', handleLogout);
             document.getElementById('profile-link').addEventListener('click', openProfileModal);
+            document.getElementById('settings-link').addEventListener('click', openSettingsModal);
             document.addEventListener('click', closeUserDropdown);
             
             // Chat functions
             document.getElementById('menu-button').addEventListener('click', toggleSidebar);
+            document.getElementById('username-display').addEventListener('click', toggleSidebar);
             document.getElementById('send-btn').addEventListener('click', sendMessage);
-            document.getElementById('message-input').addEventListener('keypress', function(e) {
-                if (e.key === 'Enter' && !e.shiftKey) {
-                    e.preventDefault();
-                    sendMessage();
-                }
-            });
-            document.getElementById('message-input').addEventListener('input', handleTyping);
             
-            // File upload
+            // Message input with enhanced features
+            const messageInput = document.getElementById('message-input');
+            messageInput.addEventListener('keydown', handleMessageInputKeydown);
+            messageInput.addEventListener('input', handleTyping);
+            messageInput.addEventListener('input', autoResizeTextarea);
+            
+            // Enhanced sidebar tabs
+            document.getElementById('chats-tab').addEventListener('click', () => switchTab('chats'));
+            document.getElementById('contacts-tab').addEventListener('click', () => switchTab('contacts'));
+            document.getElementById('history-tab').addEventListener('click', () => switchTab('history'));
+            
+            // Search functionality
+            document.getElementById('search-input').addEventListener('input', handleSearch);
+            document.getElementById('search-filter-btn').addEventListener('click', toggleSearchFilters);
+            document.querySelectorAll('.search-filter').forEach(btn => {
+                btn.addEventListener('click', (e) => setSearchFilter(e.target.dataset.filter));
+            });
+            
+            // File uploads
             document.getElementById('image-upload-btn').addEventListener('click', () => document.getElementById('image-input').click());
             document.getElementById('file-upload-btn').addEventListener('click', () => document.getElementById('file-input').click());
             document.getElementById('image-input').addEventListener('change', handleImageUpload);
             document.getElementById('file-input').addEventListener('change', handleFileUpload);
             document.getElementById('cancel-upload').addEventListener('click', cancelFileUpload);
+            
+            // Enhanced features
+            document.getElementById('emoji-btn').addEventListener('click', toggleEmojiPicker);
+            document.getElementById('voice-message-btn').addEventListener('click', handleVoiceMessage);
+            document.getElementById('notifications-btn').addEventListener('click', showNotifications);
             
             // Profile modal
             document.getElementById('close-profile-modal').addEventListener('click', closeProfileModal);
@@ -458,31 +865,613 @@
             document.getElementById('change-avatar').addEventListener('click', () => document.getElementById('avatar-input').click());
             document.getElementById('avatar-input').addEventListener('change', handleAvatarUpload);
 
-            // NEW: Event listener for username display to toggle sidebar
-            document.getElementById('username-display').addEventListener('click', toggleSidebar);
+            // Settings modal
+            document.getElementById('close-settings-modal').addEventListener('click', closeSettingsModal);
+            document.getElementById('save-settings-btn').addEventListener('click', saveSettings);
+            document.getElementById('reset-settings-btn').addEventListener('click', resetSettings);
+            
+            // Settings tabs
+            document.querySelectorAll('.settings-tab').forEach(tab => {
+                tab.addEventListener('click', (e) => switchSettingsTab(e.target.dataset.tab));
+            });
 
-            // NEW: Event listener for user search input
-            document.getElementById('search-users-input').addEventListener('input', searchUsers);
+            // Add contact
+            document.getElementById('add-contact-btn').addEventListener('click', openAddContactModal);
+            document.getElementById('close-add-contact-modal').addEventListener('click', closeAddContactModal);
+            document.getElementById('add-contact-form').addEventListener('submit', handleAddContact);
+
+            // Sidebar overlay for mobile
+            document.getElementById('sidebar-overlay').addEventListener('click', toggleSidebar);
+
+            // History management
+            document.getElementById('history-filter').addEventListener('change', filterChatHistory);
+            document.getElementById('clear-history-btn').addEventListener('click', clearChatHistory);
+
+            // Theme options
+            document.querySelectorAll('.theme-option').forEach(option => {
+                option.addEventListener('click', (e) => selectTheme(e.currentTarget.dataset.theme));
+            });
+
+            document.querySelectorAll('.bg-option').forEach(option => {
+                option.addEventListener('click', (e) => selectBackground(e.currentTarget.dataset.bg));
+            });
         }
 
-        // NEW FUNCTION: Setup listeners for media elements
         function setupMediaListeners() {
-            // Listen for tab visibility changes to pause audio
             document.addEventListener('visibilitychange', function() {
                 if (document.hidden) {
-                    // Tab is hidden, pause all audio elements
                     console.log('Tab is hidden, pausing audio.');
                     if (myDemoAudio && !myDemoAudio.paused) {
                         myDemoAudio.pause();
                     }
                 } else {
-                    // Tab is visible again
                     console.log('Tab is visible.');
                 }
             });
         }
 
-        // Handle login
+        function initializeEmojiPicker() {
+            const emojiPickerContainer = document.querySelector('#emoji-picker .grid');
+            emojis.forEach(emoji => {
+                const emojiBtn = document.createElement('button');
+                emojiBtn.textContent = emoji;
+                emojiBtn.className = 'p-2 hover:bg-gray-600 rounded text-xl';
+                emojiBtn.addEventListener('click', () => insertEmoji(emoji));
+                emojiPickerContainer.appendChild(emojiBtn);
+            });
+        }
+
+        function loadUserSettings() {
+            const savedSettings = JSON.parse(window.localStorage?.getItem('fireChat_settings') || 'null');
+            if (savedSettings) {
+                userSettings = { ...userSettings, ...savedSettings };
+                applySettings();
+            }
+        }
+
+        function saveUserSettings() {
+            try {
+                window.localStorage?.setItem('fireChat_settings', JSON.stringify(userSettings));
+            } catch (e) {
+                console.log('Settings saved to memory only');
+            }
+        }
+
+        function applySettings() {
+            // Apply theme
+            document.body.className = userSettings.theme === 'dark' ? 'bg-gray-900 text-gray-100' : 'bg-gray-100 text-gray-900';
+            
+            // Apply font size
+            const root = document.documentElement;
+            const sizeMap = { small: '14px', medium: '16px', large: '18px', 'extra-large': '20px' };
+            root.style.fontSize = sizeMap[userSettings.fontSize];
+            
+            // Update form values
+            Object.keys(userSettings).forEach(key => {
+                const element = document.getElementById(key.replace(/([A-Z])/g, '-$1').toLowerCase());
+                if (element) {
+                    if (element.type === 'checkbox') {
+                        element.checked = userSettings[key];
+                    } else {
+                        element.value = userSettings[key];
+                    }
+                }
+            });
+        }
+
+        // Enhanced search functionality
+        function handleSearch() {
+            const searchTerm = document.getElementById('search-input').value.toLowerCase();
+            const activeTab = document.querySelector('.tab-content.active').id;
+            
+            switch (activeTab) {
+                case 'chats-content':
+                    searchChats(searchTerm);
+                    break;
+                case 'contacts-content':
+                    searchContacts(searchTerm);
+                    break;
+                case 'history-content':
+                    searchHistory(searchTerm);
+                    break;
+            }
+        }
+
+        function searchChats(searchTerm) {
+            // Filter and display chats based on search term and current filter
+            const chatElements = document.querySelectorAll('#recent-chats .chat-item, #rooms-list .room-item');
+            chatElements.forEach(element => {
+                const text = element.textContent.toLowerCase();
+                const matchesSearch = text.includes(searchTerm);
+                const matchesFilter = applyCurrentFilter(element);
+                element.style.display = (matchesSearch && matchesFilter) ? 'block' : 'none';
+            });
+        }
+
+        function searchContacts(searchTerm) {
+            const filteredContacts = allUsers.filter(user => 
+                (user.username?.toLowerCase().includes(searchTerm) || 
+                 user.email?.toLowerCase().includes(searchTerm)) &&
+                user.id !== currentUser?.uid
+            );
+            displayUsers(filteredContacts, 'contacts-list');
+        }
+
+        function searchHistory(searchTerm) {
+            const filteredHistory = chatHistory.filter(chat => 
+                chat.name.toLowerCase().includes(searchTerm) ||
+                chat.lastMessage?.toLowerCase().includes(searchTerm)
+            );
+            displayChatHistory(filteredHistory);
+        }
+
+        function toggleSearchFilters() {
+            document.getElementById('search-filters').classList.toggle('hidden');
+        }
+
+        function setSearchFilter(filter) {
+            currentSearchFilter = filter;
+            document.querySelectorAll('.search-filter').forEach(btn => {
+                btn.classList.toggle('bg-purple-600', btn.dataset.filter === filter);
+                btn.classList.toggle('bg-gray-600', btn.dataset.filter !== filter);
+            });
+            handleSearch(); // Reapply search with new filter
+        }
+
+        function applyCurrentFilter(element) {
+            switch (currentSearchFilter) {
+                case 'friends':
+                    return element.classList.contains('friend-chat');
+                case 'groups':
+                    return element.classList.contains('group-chat');
+                case 'unread':
+                    return element.querySelector('.notification-badge');
+                default:
+                    return true;
+            }
+        }
+
+        // Enhanced tab switching
+        function switchTab(tabName) {
+            // Update tab buttons
+            document.querySelectorAll('[id$="-tab"]').forEach(tab => {
+                tab.classList.remove('bg-purple-600', 'text-white');
+                tab.classList.add('text-gray-300');
+            });
+            document.getElementById(`${tabName}-tab`).classList.add('bg-purple-600', 'text-white');
+            document.getElementById(`${tabName}-tab`).classList.remove('text-gray-300');
+
+            // Update tab content
+            document.querySelectorAll('.tab-content').forEach(content => {
+                content.classList.remove('active');
+            });
+            document.getElementById(`${tabName}-content`).classList.add('active');
+            
+            // Clear search when switching tabs
+            document.getElementById('search-input').value = '';
+            
+            // Load appropriate content
+            switch(tabName) {
+                case 'contacts':
+                    loadContacts();
+                    break;
+                case 'history':
+                    loadChatHistory();
+                    break;
+                default:
+                    loadRecentChats();
+            }
+        }
+
+        function switchSettingsTab(tabName) {
+            // Update settings tab buttons
+            document.querySelectorAll('.settings-tab').forEach(tab => {
+                tab.classList.remove('bg-purple-600', 'text-white');
+                tab.classList.add('text-gray-300');
+            });
+            document.querySelector(`[data-tab="${tabName}"]`).classList.add('bg-purple-600', 'text-white');
+            document.querySelector(`[data-tab="${tabName}"]`).classList.remove('text-gray-300');
+
+            // Update settings content
+            document.querySelectorAll('.settings-content').forEach(content => {
+                content.classList.add('hidden');
+            });
+            document.getElementById(`${tabName}-settings`).classList.remove('hidden');
+        }
+
+        // Enhanced message input handling
+        function handleMessageInputKeydown(e) {
+            if (e.key === 'Enter' && !e.shiftKey && userSettings.enterToSend) {
+                e.preventDefault();
+                sendMessage();
+            }
+        }
+
+        function autoResizeTextarea() {
+            const textarea = document.getElementById('message-input');
+            textarea.style.height = 'auto';
+            textarea.style.height = Math.min(textarea.scrollHeight, 150) + 'px';
+        }
+
+        // Enhanced sidebar management
+        function toggleSidebar() {
+            const sidebar = document.getElementById('sidebar');
+            const overlay = document.getElementById('sidebar-overlay');
+            
+            sidebar.classList.toggle('active');
+            overlay.classList.toggle('active');
+        }
+
+        // Emoji picker functionality
+        function toggleEmojiPicker(e) {
+            e.stopPropagation();
+            const picker = document.getElementById('emoji-picker');
+            picker.classList.toggle('hidden');
+            
+            // Close when clicking outside
+            if (!picker.classList.contains('hidden')) {
+                document.addEventListener('click', closeEmojiPicker);
+            }
+        }
+
+        function closeEmojiPicker(e) {
+            if (!e.target.closest('#emoji-picker') && !e.target.closest('#emoji-btn')) {
+                document.getElementById('emoji-picker').classList.add('hidden');
+                document.removeEventListener('click', closeEmojiPicker);
+            }
+        }
+
+        function insertEmoji(emoji) {
+            const input = document.getElementById('message-input');
+            const cursorPos = input.selectionStart;
+            const textBefore = input.value.substring(0, cursorPos);
+            const textAfter = input.value.substring(cursorPos);
+            
+            input.value = textBefore + emoji + textAfter;
+            input.focus();
+            input.setSelectionRange(cursorPos + emoji.length, cursorPos + emoji.length);
+            
+            document.getElementById('emoji-picker').classList.add('hidden');
+            autoResizeTextarea();
+        }
+
+        // Enhanced contact management
+        function loadContacts() {
+            if (!currentUser) return;
+            
+            db.collection('users').doc(currentUser.uid).collection('contacts')
+                .onSnapshot(snapshot => {
+                    contacts = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                    displayContacts();
+                }, error => {
+                    console.error("Error loading contacts: ", error);
+                });
+        }
+
+        function displayContacts() {
+            const container = document.getElementById('contacts-list');
+            container.innerHTML = '';
+
+            contacts.forEach(contact => {
+                const contactDiv = createContactElement(contact);
+                container.appendChild(contactDiv);
+            });
+        }
+
+        function createContactElement(contact) {
+            const div = document.createElement('div');
+            div.className = 'flex items-center p-3 rounded-lg hover:bg-gray-700 cursor-pointer group';
+            div.innerHTML = `
+                <div class="w-10 h-10 rounded-full bg-purple-600 flex items-center justify-center text-white text-sm mr-3">
+                    ${contact.username ? contact.username.charAt(0).toUpperCase() : contact.email.charAt(0).toUpperCase()}
+                </div>
+                <div class="flex-1">
+                    <div class="font-medium text-gray-200">${contact.username || contact.email.split('@')[0]}</div>
+                    <div class="text-sm text-gray-400">${contact.status || 'No status'}</div>
+                </div>
+                <div class="flex space-x-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <button class="text-green-400 hover:text-green-300" onclick="startPrivateChat('${contact.id}', '${contact.username || contact.email.split('@')[0]}')">
+                        <i class="fas fa-comment"></i>
+                    </button>
+                    <button class="text-blue-400 hover:text-blue-300" onclick="callContact('${contact.id}')">
+                        <i class="fas fa-phone"></i>
+                    </button>
+                </div>
+            `;
+            return div;
+        }
+
+        // Chat history management
+        function loadChatHistory() {
+            if (!currentUser) return;
+            
+            // Load from Firestore or local storage
+            db.collection('users').doc(currentUser.uid).collection('chatHistory')
+                .orderBy('lastMessageTime', 'desc')
+                .onSnapshot(snapshot => {
+                    chatHistory = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                    displayChatHistory(chatHistory);
+                }, error => {
+                    console.error("Error loading chat history: ", error);
+                });
+        }
+
+        function displayChatHistory(historyItems = chatHistory) {
+            const container = document.getElementById('chat-history');
+            container.innerHTML = '';
+
+            historyItems.forEach(item => {
+                const historyDiv = createHistoryElement(item);
+                container.appendChild(historyDiv);
+            });
+        }
+
+        function createHistoryElement(item) {
+            const div = document.createElement('div');
+            div.className = 'flex items-center p-3 rounded-lg hover:bg-gray-700 cursor-pointer group';
+            div.innerHTML = `
+                <div class="w-10 h-10 rounded-full bg-gray-600 flex items-center justify-center text-white text-sm mr-3">
+                    <i class="fas fa-${item.type === 'private' ? 'user' : 'users'}"></i>
+                </div>
+                <div class="flex-1">
+                    <div class="font-medium text-gray-200">${item.name}</div>
+                    <div class="text-sm text-gray-400 truncate">${item.lastMessage || 'No messages'}</div>
+                    <div class="text-xs text-gray-500">${formatDate(item.lastMessageTime)}</div>
+                </div>
+                <button class="opacity-0 group-hover:opacity-100 text-red-400 hover:text-red-300 transition-opacity" onclick="removeFromHistory('${item.id}')">
+                    <i class="fas fa-trash"></i>
+                </button>
+            `;
+            div.addEventListener('click', () => selectChatRoom(item.roomId, item.name));
+            return div;
+        }
+
+        function filterChatHistory() {
+            const filter = document.getElementById('history-filter').value;
+            const now = new Date();
+            let filteredHistory = [...chatHistory];
+
+            switch(filter) {
+                case 'today':
+                    filteredHistory = chatHistory.filter(item => {
+                        const itemDate = new Date(item.lastMessageTime?.toDate());
+                        return itemDate.toDateString() === now.toDateString();
+                    });
+                    break;
+                case 'week':
+                    const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+                    filteredHistory = chatHistory.filter(item => {
+                        const itemDate = new Date(item.lastMessageTime?.toDate());
+                        return itemDate >= weekAgo;
+                    });
+                    break;
+                case 'month':
+                    const monthAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+                    filteredHistory = chatHistory.filter(item => {
+                        const itemDate = new Date(item.lastMessageTime?.toDate());
+                        return itemDate >= monthAgo;
+                    });
+                    break;
+            }
+
+            displayChatHistory(filteredHistory);
+        }
+
+        function clearChatHistory() {
+            if (confirm('Are you sure you want to clear your chat history? This action cannot be undone.')) {
+                if (currentUser) {
+                    db.collection('users').doc(currentUser.uid).collection('chatHistory')
+                        .get().then(snapshot => {
+                            const batch = db.batch();
+                            snapshot.docs.forEach(doc => {
+                                batch.delete(doc.ref);
+                            });
+                            return batch.commit();
+                        })
+                        .then(() => {
+                            showSuccess('Chat history cleared successfully');
+                            chatHistory = [];
+                            displayChatHistory([]);
+                        })
+                        .catch(error => {
+                            showError('Error clearing chat history: ' + error.message);
+                        });
+                }
+            }
+        }
+
+        // Settings management
+        function openSettingsModal() {
+            document.getElementById('settings-modal').classList.remove('hidden');
+            document.getElementById('user-dropdown').classList.add('hidden');
+            applySettings(); // Populate current settings
+        }
+
+        function closeSettingsModal() {
+            document.getElementById('settings-modal').classList.add('hidden');
+        }
+
+        function saveSettings() {
+            // Gather settings from form
+            const newSettings = {};
+            
+            // General settings
+            newSettings.language = document.getElementById('language-select')?.value || userSettings.language;
+            newSettings.autoSaveHistory = document.getElementById('auto-save-history')?.checked ?? userSettings.autoSaveHistory;
+            newSettings.enterToSend = document.getElementById('enter-to-send')?.checked ?? userSettings.enterToSend;
+            
+            // Notification settings
+            newSettings.desktopNotifications = document.getElementById('desktop-notifications')?.checked ?? userSettings.desktopNotifications;
+            newSettings.soundNotifications = document.getElementById('sound-notifications')?.checked ?? userSettings.soundNotifications;
+            newSettings.messagePreview = document.getElementById('message-previews')?.checked ?? userSettings.messagePreview;
+            
+            // Privacy settings
+            newSettings.onlineStatusVisibility = document.getElementById('online-status-visibility')?.value || userSettings.onlineStatusVisibility;
+            newSettings.messagePrivacy = document.getElementById('message-privacy')?.value || userSettings.messagePrivacy;
+            newSettings.readReceipts = document.getElementById('read-receipts')?.checked ?? userSettings.readReceipts;
+            newSettings.typingIndicators = document.getElementById('typing-indicators')?.checked ?? userSettings.typingIndicators;
+            
+            // Appearance settings
+            newSettings.fontSize = document.getElementById('font-size')?.value || userSettings.fontSize;
+            newSettings.compactMode = document.getElementById('compact-mode')?.checked ?? userSettings.compactMode;
+
+            // Update global settings
+            userSettings = { ...userSettings, ...newSettings };
+            
+            // Apply settings immediately
+            applySettings();
+            
+            // Save to storage (if available)
+            saveUserSettings();
+            
+            // Save to Firestore for sync across devices
+            if (currentUser) {
+                db.collection('users').doc(currentUser.uid).update({
+                    settings: userSettings
+                }).catch(error => {
+                    console.error("Error saving settings to Firestore: ", error);
+                });
+            }
+            
+            showSuccess('Settings saved successfully');
+            closeSettingsModal();
+        }
+
+        function resetSettings() {
+            if (confirm('Are you sure you want to reset all settings to default?')) {
+                userSettings = {
+                    language: 'en',
+                    autoSaveHistory: true,
+                    enterToSend: true,
+                    desktopNotifications: false,
+                    soundNotifications: true,
+                    messagePreview: true,
+                    onlineStatusVisibility: 'everyone',
+                    messagePrivacy: 'everyone',
+                    readReceipts: true,
+                    typingIndicators: true,
+                    theme: 'dark',
+                    fontSize: 'medium',
+                    chatBackground: 'default',
+                    compactMode: false
+                };
+                
+                applySettings();
+                saveUserSettings();
+                showSuccess('Settings reset to default');
+            }
+        }
+
+        function selectTheme(theme) {
+            userSettings.theme = theme;
+            document.querySelectorAll('.theme-option').forEach(option => {
+                option.classList.toggle('border-purple-600', option.dataset.theme === theme);
+                option.classList.toggle('border-gray-600', option.dataset.theme !== theme);
+            });
+            applySettings();
+        }
+
+        function selectBackground(bg) {
+            userSettings.chatBackground = bg;
+            document.querySelectorAll('.bg-option').forEach(option => {
+                option.classList.toggle('border-purple-600', option.dataset.bg === bg);
+                option.classList.toggle('border-gray-600', option.dataset.bg !== bg);
+            });
+        }
+
+        // Add contact functionality
+        function openAddContactModal() {
+            document.getElementById('add-contact-modal').classList.remove('hidden');
+        }
+
+        function closeAddContactModal() {
+            document.getElementById('add-contact-modal').classList.add('hidden');
+            document.getElementById('add-contact-form').reset();
+        }
+
+        function handleAddContact(e) {
+            e.preventDefault();
+            const emailOrUsername = document.getElementById('contact-email').value.trim();
+            const message = document.getElementById('contact-message').value.trim();
+            
+            if (!currentUser || !emailOrUsername) return;
+            
+            // Search for user by email or username
+            db.collection('users')
+                .where('email', '==', emailOrUsername)
+                .get()
+                .then(snapshot => {
+                    if (snapshot.empty) {
+                        return db.collection('users').where('username', '==', emailOrUsername).get();
+                    }
+                    return snapshot;
+                })
+                .then(snapshot => {
+                    if (snapshot.empty) {
+                        showError('User not found');
+                        return;
+                    }
+                    
+                    const targetUser = snapshot.docs[0];
+                    const targetData = targetUser.data();
+                    
+                    // Add to contacts
+                    return db.collection('users').doc(currentUser.uid).collection('contacts').doc(targetUser.id).set({
+                        username: targetData.username,
+                        email: targetData.email,
+                        addedAt: firebase.firestore.FieldValue.serverTimestamp(),
+                        message: message
+                    });
+                })
+                .then(() => {
+                    showSuccess('Contact added successfully');
+                    closeAddContactModal();
+                })
+                .catch(error => {
+                    showError('Error adding contact: ' + error.message);
+                });
+        }
+
+        // Enhanced messaging features
+        function handleVoiceMessage() {
+            showError('Voice message functionality is not implemented yet');
+            // TODO: Implement voice recording
+        }
+
+        function showNotifications() {
+            showError('Notifications panel is not implemented yet');
+            // TODO: Implement notifications panel
+        }
+
+        // Utility functions
+        function formatDate(timestamp) {
+            if (!timestamp) return '';
+            const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
+            const now = new Date();
+            const diff = now - date;
+            
+            if (diff < 24 * 60 * 60 * 1000) {
+                return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            } else if (diff < 7 * 24 * 60 * 60 * 1000) {
+                return date.toLocaleDateString([], { weekday: 'short' });
+            } else {
+                return date.toLocaleDateString();
+            }
+        }
+
+        function removeFromHistory(historyId) {
+            if (currentUser) {
+                db.collection('users').doc(currentUser.uid).collection('chatHistory').doc(historyId).delete()
+                    .then(() => {
+                        showSuccess('Removed from history');
+                    })
+                    .catch(error => {
+                        showError('Error removing from history: ' + error.message);
+                    });
+            }
+        }
+
+        // Original functions (keeping existing functionality)
         function handleLogin(e) {
             e.preventDefault();
             const email = document.getElementById('login-email').value;
@@ -495,14 +1484,13 @@
                         document.getElementById('auth-screen').classList.add('hidden');
                         document.getElementById('chat-app').classList.remove('hidden');
                         document.getElementById('chat-loader').classList.add('hidden');
-                    }, 3000);
+                    }, 2000);
                 })
                 .catch(error => {
                     showError('Login failed: ' + error.message);
                 });
         }
 
-        // Handle registration
         function handleRegister(e) {
             e.preventDefault();
             const username = document.getElementById('register-username').value;
@@ -521,7 +1509,8 @@
                         username: username,
                         email: email,
                         createdAt: firebase.firestore.FieldValue.serverTimestamp(),
-                        status: 'online'
+                        status: 'online',
+                        settings: userSettings
                     });
                 })
                 .then(() => {
@@ -530,14 +1519,26 @@
                         document.getElementById('auth-screen').classList.add('hidden');
                         document.getElementById('chat-app').classList.remove('hidden');
                         document.getElementById('chat-loader').classList.add('hidden');
-                    }, 3000);
+                    }, 2000);
                 })
                 .catch(error => {
                     showError('Registration failed: ' + error.message);
                 });
         }
 
-        // Check authentication state
+        function handleForgotPassword() {
+            const email = prompt('Please enter your email address:');
+            if (email) {
+                auth.sendPasswordResetEmail(email)
+                    .then(() => {
+                        showSuccess('Password reset email sent!');
+                    })
+                    .catch(error => {
+                        showError('Error sending reset email: ' + error.message);
+                    });
+            }
+        }
+
         function checkAuthState() {
             auth.onAuthStateChanged(user => {
                 if (user) {
@@ -549,10 +1550,13 @@
                     setTimeout(() => {
                         document.getElementById('chat-app').classList.remove('hidden');
                         document.getElementById('chat-loader').classList.add('hidden');
-                        loadAllUsers(); // Load all users when authenticated
-                        listenForOnlineUsers(); // Start listening for online users
-                        listenForChatRooms(); // Start listening for chat rooms
-                    }, 3000);
+                        loadAllUsers();
+                        listenForOnlineUsers();
+                        listenForChatRooms();
+                        loadContacts();
+                        loadChatHistory();
+                        loadUserSettingsFromFirestore();
+                    }, 2000);
                 } else {
                     currentUser = null;
                     document.getElementById('auth-screen').classList.remove('hidden');
@@ -561,7 +1565,21 @@
             });
         }
 
-        // Set up user data
+        function loadUserSettingsFromFirestore() {
+            if (currentUser) {
+                db.collection('users').doc(currentUser.uid).get()
+                    .then(doc => {
+                        if (doc.exists && doc.data().settings) {
+                            userSettings = { ...userSettings, ...doc.data().settings };
+                            applySettings();
+                        }
+                    })
+                    .catch(error => {
+                        console.error("Error loading settings from Firestore: ", error);
+                    });
+            }
+        }
+
         function setupUser(user) {
             document.getElementById('username-display').textContent = user.email.split('@')[0];
             
@@ -572,17 +1590,24 @@
                         document.getElementById('username-display').textContent = userData.username;
                         document.getElementById('profile-username').value = userData.username;
                     }
+                    if (userData.status) {
+                        document.getElementById('profile-status').value = userData.status;
+                    }
                 }
+            });
+
+            // Update online status
+            db.collection('users').doc(user.uid).update({
+                status: 'online',
+                lastSeen: firebase.firestore.FieldValue.serverTimestamp()
             });
         }
 
-        // Toggle user dropdown
         function toggleUserDropdown(e) {
             e.stopPropagation();
             document.getElementById('user-dropdown').classList.toggle('hidden');
         }
 
-        // Close user dropdown
         function closeUserDropdown(e) {
             if (!document.getElementById('user-dropdown').contains(e.target) && 
                 e.target !== document.getElementById('user-dropdown-btn')) {
@@ -590,12 +1615,6 @@
             }
         }
 
-        // Toggle sidebar
-        function toggleSidebar() {
-            document.getElementById('sidebar').classList.toggle('active');
-        }
-
-        // Open profile modal
         function openProfileModal(e) {
             e.preventDefault();
             if (!currentUser) return;
@@ -607,6 +1626,9 @@
                     if (userData.username) {
                         document.getElementById('profile-username').value = userData.username;
                     }
+                    if (userData.status) {
+                        document.getElementById('profile-status').value = userData.status;
+                    }
                 }
             });
             
@@ -614,21 +1636,20 @@
             document.getElementById('user-dropdown').classList.add('hidden');
         }
 
-        // Close profile modal and pause video
         function closeProfileModal() {
             document.getElementById('profile-modal').classList.add('hidden');
             if (myDemoVideo && !myDemoVideo.paused) {
                 myDemoVideo.pause();
-                console.log('Video paused because profile modal (gallery) was closed.');
+                console.log('Video paused because profile modal was closed.');
             }
         }
 
-        // Update profile
         function updateProfile(e) {
             e.preventDefault();
             if (!currentUser) return;
             
             const username = document.getElementById('profile-username').value;
+            const status = document.getElementById('profile-status').value;
             const currentPassword = document.getElementById('current-password').value;
             const newPassword = document.getElementById('new-password').value;
             const confirmNewPassword = document.getElementById('confirm-new-password').value;
@@ -637,7 +1658,8 @@
             
             promises.push(
                 db.collection('users').doc(currentUser.uid).update({
-                    username: username
+                    username: username,
+                    status: status
                 })
             );
             
@@ -665,32 +1687,48 @@
                 .then(() => {
                     showSuccess('Profile updated successfully');
                     document.getElementById('profile-modal').classList.add('hidden');
+                    // Clear password fields
+                    document.getElementById('current-password').value = '';
+                    document.getElementById('new-password').value = '';
+                    document.getElementById('confirm-new-password').value = '';
                 })
                 .catch(error => {
                     showError('Error updating profile: ' + error.message);
                 });
         }
 
-        // Handle logout
         function handleLogout(e) {
             e.preventDefault();
-            auth.signOut();
+            if (currentUser) {
+                db.collection('users').doc(currentUser.uid).update({
+                    status: 'offline',
+                    lastSeen: firebase.firestore.FieldValue.serverTimestamp()
+                }).then(() => {
+                    return auth.signOut();
+                });
+            } else {
+                auth.signOut();
+            }
         }
 
-        // Confirm account deletion
         function confirmAccountDeletion() {
             if (confirm('Are you sure you want to delete your account? This action cannot be undone.')) {
                 deleteAccount();
             }
         }
 
-        // Delete account
         function deleteAccount() {
             if (!currentUser) return;
             
-            auth.currentUser.delete()
+            // Delete user data from Firestore
+            const batch = db.batch();
+            
+            // Delete user document
+            batch.delete(db.collection('users').doc(currentUser.uid));
+            
+            batch.commit()
                 .then(() => {
-                    return db.collection('users').doc(currentUser.uid).delete();
+                    return currentUser.delete();
                 })
                 .then(() => {
                     showSuccess('Account deleted successfully');
@@ -700,153 +1738,276 @@
                 });
         }
 
-        // Handle typing indicator
         function handleTyping() {
+            if (!currentRoomId || !currentUser) return;
+            
             if (!isTyping) {
                 isTyping = true;
-                // In a real app, you'd send a Firestore update here
-                // e.g., db.collection('rooms').doc(currentRoomId).update({ typingUsers: firebase.firestore.FieldValue.arrayUnion(currentUser.uid) });
+                // Update typing status in Firestore
+                db.collection('rooms').doc(currentRoomId).update({
+                    [`typingUsers.${currentUser.uid}`]: {
+                        username: document.getElementById('username-display').textContent,
+                        timestamp: firebase.firestore.FieldValue.serverTimestamp()
+                    }
+                });
             }
             
             clearTimeout(typingTimeout);
             typingTimeout = setTimeout(() => {
                 isTyping = false;
-                // In a real app, you'd send a Firestore update here to remove typing status
-                // e.g., db.collection('rooms').doc(currentRoomId).update({ typingUsers: firebase.firestore.FieldValue.arrayRemove(currentUser.uid) });
-            }, 1000);
+                // Remove typing status
+                db.collection('rooms').doc(currentRoomId).update({
+                    [`typingUsers.${currentUser.uid}`]: firebase.firestore.FieldValue.delete()
+                });
+            }, 2000);
         }
 
-        // Send message
         function sendMessage() {
             const messageText = document.getElementById('message-input').value.trim();
             if (!messageText || !currentRoomId || !currentUser) return;
             
-            db.collection('rooms').doc(currentRoomId).collection('messages').add({
+            const messageData = {
                 senderId: currentUser.uid,
                 senderName: document.getElementById('username-display').textContent,
                 text: messageText,
-                timestamp: firebase.firestore.FieldValue.serverTimestamp()
-            }).then(() => {
-                document.getElementById('message-input').value = '';
-                // Scroll to bottom of messages
-                const messagesContainer = document.getElementById('messages-container');
-                messagesContainer.scrollTop = messagesContainer.scrollHeight;
-            }).catch(error => {
-                showError('Error sending message: ' + error.message);
-            });
+                timestamp: firebase.firestore.FieldValue.serverTimestamp(),
+                type: 'text'
+            };
+            
+            db.collection('rooms').doc(currentRoomId).collection('messages').add(messageData)
+                .then(() => {
+                    document.getElementById('message-input').value = '';
+                    autoResizeTextarea();
+                    
+                    // Update chat history
+                    if (userSettings.autoSaveHistory) {
+                        updateChatHistory(currentRoomId, messageText);
+                    }
+                    
+                    // Scroll to bottom
+                    const messagesContainer = document.getElementById('messages-container');
+                    messagesContainer.scrollTop = messagesContainer.scrollHeight;
+                    
+                    // Remove typing indicator
+                    if (isTyping) {
+                        isTyping = false;
+                        db.collection('rooms').doc(currentRoomId).update({
+                            [`typingUsers.${currentUser.uid}`]: firebase.firestore.FieldValue.delete()
+                        });
+                    }
+                })
+                .catch(error => {
+                    showError('Error sending message: ' + error.message);
+                });
         }
 
-        // Handle image upload (placeholder)
+        function updateChatHistory(roomId, lastMessage) {
+            if (!currentUser) return;
+            
+            const roomName = document.getElementById('current-room').textContent;
+            
+            db.collection('users').doc(currentUser.uid).collection('chatHistory').doc(roomId).set({
+                roomId: roomId,
+                name: roomName,
+                lastMessage: lastMessage,
+                lastMessageTime: firebase.firestore.FieldValue.serverTimestamp(),
+                type: roomId.startsWith('private_') ? 'private' : 'group'
+            }, { merge: true });
+        }
+
         function handleImageUpload(e) {
             const file = e.target.files[0];
             if (!file) return;
-            showError('Image upload functionality is a placeholder.');
-            // In a real app, upload to Firebase Storage and then send message with image URL
+            
+            showError('Image upload functionality is a placeholder - would upload to Firebase Storage');
         }
 
-        // Handle file upload (placeholder)
         function handleFileUpload(e) {
             const file = e.target.files[0];
             if (!file) return;
-            showError('File upload functionality is a placeholder.');
-            // In a real app, upload to Firebase Storage and then send message with file URL
+            
+            showError('File upload functionality is a placeholder - would upload to Firebase Storage');
         }
 
-        // Cancel file upload
         function cancelFileUpload() {
             document.getElementById('file-input').value = '';
             document.getElementById('image-input').value = '';
             document.getElementById('file-preview').classList.add('hidden');
         }
 
-        // Handle avatar upload (placeholder)
         function handleAvatarUpload(e) {
             const file = e.target.files[0];
             if (!file) return;
-            showError('Avatar upload functionality is a placeholder.');
-            // In a real app, upload to Firebase Storage and update user profile
+            
+            showError('Avatar upload functionality is a placeholder - would upload to Firebase Storage');
         }
 
-        // Show error message
         function showError(message) {
-            alert('Error: ' + message); // Replace with a better error display
+            // Create a toast notification instead of alert
+            const toast = document.createElement('div');
+            toast.className = 'fixed top-4 right-4 bg-red-600 text-white px-6 py-3 rounded-lg shadow-lg z-50 transform translate-x-full opacity-0 transition-all duration-300';
+            toast.innerHTML = `
+                <div class="flex items-center">
+                    <i class="fas fa-exclamation-circle mr-2"></i>
+                    <span>${message}</span>
+                </div>
+            `;
+            document.body.appendChild(toast);
+            
+            // Animate in
+            setTimeout(() => {
+                toast.classList.remove('translate-x-full', 'opacity-0');
+            }, 100);
+            
+            // Remove after 5 seconds
+            setTimeout(() => {
+                toast.classList.add('translate-x-full', 'opacity-0');
+                setTimeout(() => {
+                    document.body.removeChild(toast);
+                }, 300);
+            }, 5000);
         }
 
-        // Show success message
         function showSuccess(message) {
-            alert('Success: ' + message); // Replace with a better success display
+            // Create a success toast notification
+            const toast = document.createElement('div');
+            toast.className = 'fixed top-4 right-4 bg-green-600 text-white px-6 py-3 rounded-lg shadow-lg z-50 transform translate-x-full opacity-0 transition-all duration-300';
+            toast.innerHTML = `
+                <div class="flex items-center">
+                    <i class="fas fa-check-circle mr-2"></i>
+                    <span>${message}</span>
+                </div>
+            `;
+            document.body.appendChild(toast);
+            
+            // Animate in
+            setTimeout(() => {
+                toast.classList.remove('translate-x-full', 'opacity-0');
+            }, 100);
+            
+            // Remove after 3 seconds
+            setTimeout(() => {
+                toast.classList.add('translate-x-full', 'opacity-0');
+                setTimeout(() => {
+                    document.body.removeChild(toast);
+                }, 300);
+            }, 3000);
         }
 
-        // NEW: Function to load all users for search
         function loadAllUsers() {
             db.collection('users').onSnapshot(snapshot => {
                 allUsers = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-                // Initially display all users in the online users section (or a separate "all users" section)
-                displayUsers(allUsers, 'online-users'); // Using online-users for simplicity, could be a new div
+                displayUsers(allUsers.filter(user => user.id !== currentUser?.uid), 'online-users');
             }, error => {
                 console.error("Error loading all users: ", error);
             });
         }
 
-        // NEW: Function to search users
-        function searchUsers() {
-            const searchTerm = document.getElementById('search-users-input').value.toLowerCase();
-            const filteredUsers = allUsers.filter(user => 
-                user.username.toLowerCase().includes(searchTerm) || user.email.toLowerCase().includes(searchTerm)
-            );
-            displayUsers(filteredUsers, 'online-users'); // Display filtered users
-        }
-
-        // NEW: Function to display users in a given container
         function displayUsers(usersToDisplay, containerId) {
             const container = document.getElementById(containerId);
-            container.innerHTML = ''; // Clear previous list
+            container.innerHTML = '';
 
             usersToDisplay.forEach(user => {
-                if (user.id === currentUser.uid) return; // Don't show current user in the list
+                if (user.id === currentUser?.uid) return;
 
                 const userDiv = document.createElement('div');
-                userDiv.className = 'flex items-center p-2 rounded-lg hover:bg-gray-700 cursor-pointer';
+                userDiv.className = 'flex items-center p-2 rounded-lg hover:bg-gray-700 cursor-pointer group';
                 userDiv.innerHTML = `
                     <div class="w-8 h-8 rounded-full bg-purple-600 flex items-center justify-center text-white text-sm mr-2">
                         ${user.username ? user.username.charAt(0).toUpperCase() : user.email.charAt(0).toUpperCase()}
                     </div>
-                    <span class="flex-1 text-gray-200">${user.username || user.email.split('@')[0]}</span>
-                    ${user.status === 'online' ? '<span class="online-dot"></span>' : ''}
+                    <div class="flex-1">
+                        <span class="text-gray-200">${user.username || user.email.split('@')[0]}</span>
+                        ${user.status === 'online' ? '<span class="online-dot ml-2"></span>' : ''}
+                    </div>
+                    <div class="opacity-0 group-hover:opacity-100 transition-opacity">
+                        <button class="text-green-400 hover:text-green-300 p-1" title="Start Chat">
+                            <i class="fas fa-comment text-sm"></i>
+                        </button>
+                    </div>
                 `;
                 userDiv.addEventListener('click', () => startPrivateChat(user.id, user.username || user.email.split('@')[0]));
                 container.appendChild(userDiv);
             });
         }
 
-        // NEW: Listen for online users (simplified, real-time presence requires more complex setup)
         function listenForOnlineUsers() {
-            // This is a basic example. Real-time online status often involves
-            // Firebase Realtime Database or more frequent Firestore updates.
             db.collection('users').where('status', '==', 'online').onSnapshot(snapshot => {
                 const onlineUsers = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-                // Filter out the current user from the online list
-                const filteredOnlineUsers = onlineUsers.filter(user => user.id !== currentUser.uid);
+                const filteredOnlineUsers = onlineUsers.filter(user => user.id !== currentUser?.uid);
                 displayUsers(filteredOnlineUsers, 'online-users');
             }, error => {
                 console.error("Error listening for online users: ", error);
             });
         }
 
-        // NEW: Listen for chat rooms
+        function loadRecentChats() {
+            if (!currentUser) return;
+            
+            // Load recent private chats
+            db.collection('rooms')
+                .where('members', 'array-contains', currentUser.uid)
+                .where('type', '==', 'private')
+                .orderBy('lastActivity', 'desc')
+                .limit(10)
+                .onSnapshot(snapshot => {
+                    const recentChats = document.getElementById('recent-chats');
+                    recentChats.innerHTML = '';
+                    
+                    snapshot.docs.forEach(doc => {
+                        const chat = doc.data();
+                        const otherMember = chat.members.find(id => id !== currentUser.uid);
+                        
+                        // Get other member's info
+                        if (otherMember) {
+                            db.collection('users').doc(otherMember).get().then(userDoc => {
+                                if (userDoc.exists) {
+                                    const userData = userDoc.data();
+                                    const chatDiv = createChatElement(doc.id, userData.username || userData.email.split('@')[0], chat.lastMessage, chat.lastActivity, true);
+                                    recentChats.appendChild(chatDiv);
+                                }
+                            });
+                        }
+                    });
+                }, error => {
+                    console.error("Error loading recent chats: ", error);
+                });
+        }
+
+        function createChatElement(roomId, name, lastMessage, lastActivity, isPrivate = false) {
+            const div = document.createElement('div');
+            div.className = `flex items-center p-3 rounded-lg hover:bg-gray-700 cursor-pointer chat-item ${isPrivate ? 'friend-chat' : 'group-chat'}`;
+            div.innerHTML = `
+                <div class="w-10 h-10 rounded-full bg-purple-600 flex items-center justify-center text-white text-sm mr-3">
+                    ${isPrivate ? '<i class="fas fa-user"></i>' : '<i class="fas fa-users"></i>'}
+                </div>
+                <div class="flex-1">
+                    <div class="font-medium text-gray-200">${name}</div>
+                    <div class="text-sm text-gray-400 truncate">${lastMessage || 'No messages yet'}</div>
+                </div>
+                <div class="text-xs text-gray-500">
+                    ${lastActivity ? formatDate(lastActivity) : ''}
+                </div>
+            `;
+            div.addEventListener('click', () => selectChatRoom(roomId, name));
+            return div;
+        }
+
         function listenForChatRooms() {
-            // This will listen for all rooms. In a real app, you'd filter rooms
-            // that the current user is a member of.
-            db.collection('rooms').onSnapshot(snapshot => {
+            db.collection('rooms').where('type', '==', 'public').onSnapshot(snapshot => {
                 const roomsList = document.getElementById('rooms-list');
-                roomsList.innerHTML = ''; // Clear existing rooms
+                roomsList.innerHTML = '';
 
                 snapshot.docs.forEach(doc => {
                     const room = doc.data();
                     const roomDiv = document.createElement('div');
-                    roomDiv.className = 'p-2 rounded-lg hover:bg-gray-700 cursor-pointer';
-                    roomDiv.textContent = room.name || 'Unnamed Room';
-                    roomDiv.dataset.roomId = doc.id;
+                    roomDiv.className = 'p-2 rounded-lg hover:bg-gray-700 cursor-pointer room-item group-chat';
+                    roomDiv.innerHTML = `
+                        <div class="flex items-center">
+                            <i class="fas fa-hashtag text-purple-400 mr-2"></i>
+                            <span class="text-gray-200">${room.name || 'Unnamed Room'}</span>
+                        </div>
+                    `;
                     roomDiv.addEventListener('click', () => selectChatRoom(doc.id, room.name || 'Unnamed Room'));
                     roomsList.appendChild(roomDiv);
                 });
@@ -855,77 +2016,199 @@
             });
         }
 
-        // NEW: Function to select a chat room
         function selectChatRoom(roomId, roomName) {
             currentRoomId = roomId;
             document.getElementById('current-room').textContent = roomName;
             document.getElementById('empty-state').classList.add('hidden');
-            document.getElementById('messages-container').innerHTML = ''; // Clear previous messages
+            
+            // Update room selection visual feedback
+            document.querySelectorAll('.chat-item, .room-item').forEach(item => {
+                item.classList.remove('bg-purple-700');
+            });
+            event?.target?.closest('.chat-item, .room-item')?.classList.add('bg-purple-700');
+            
+            // Start listening for messages
+            listenForMessages(roomId);
+            
+            // Start listening for typing indicators
+            listenForTypingIndicators(roomId);
+            
+            // Close sidebar on mobile after selection
+            if (window.innerWidth < 768) {
+                toggleSidebar();
+            }
+        }
 
-            // Start listening for messages in the selected room
+        function listenForMessages(roomId) {
             db.collection('rooms').doc(roomId).collection('messages')
                 .orderBy('timestamp')
                 .onSnapshot(snapshot => {
                     const messagesContainer = document.getElementById('messages-container');
-                    messagesContainer.innerHTML = ''; // Clear messages before re-rendering
+                    messagesContainer.innerHTML = '';
 
                     snapshot.docs.forEach(doc => {
                         const message = doc.data();
-                        const messageDiv = document.createElement('div');
-                        messageDiv.className = `mb-2 p-3 rounded-lg max-w-xs ${message.senderId === currentUser.uid ? 'bg-purple-700 ml-auto text-white' : 'bg-gray-700 mr-auto text-gray-100'}`;
-                        messageDiv.innerHTML = `
-                            <div class="font-semibold text-sm mb-1">${message.senderName}</div>
-                            <div>${message.text}</div>
-                            <div class="text-xs text-gray-400 mt-1 text-right">${message.timestamp ? new Date(message.timestamp.toDate()).toLocaleTimeString() : ''}</div>
-                        `;
+                        const messageDiv = createMessageElement(message);
                         messagesContainer.appendChild(messageDiv);
                     });
-                    messagesContainer.scrollTop = messagesContainer.scrollHeight; // Scroll to bottom
+                    
+                    messagesContainer.scrollTop = messagesContainer.scrollHeight;
                 }, error => {
                     console.error("Error listening for messages: ", error);
                 });
         }
 
-        // NEW: Function to start a private chat
+        function createMessageElement(message) {
+            const messageDiv = document.createElement('div');
+            const isOwnMessage = message.senderId === currentUser?.uid;
+            
+            messageDiv.className = `mb-4 flex ${isOwnMessage ? 'justify-end' : 'justify-start'}`;
+            messageDiv.innerHTML = `
+                <div class="max-w-xs lg:max-w-md px-4 py-2 rounded-lg ${isOwnMessage ? 'bg-purple-600 text-white' : 'bg-gray-700 text-gray-100'}">
+                    ${!isOwnMessage ? `<div class="font-semibold text-sm mb-1 text-purple-400">${message.senderName}</div>` : ''}
+                    <div class="break-words">${message.text}</div>
+                    <div class="text-xs mt-1 opacity-75 text-right">
+                        ${message.timestamp ? new Date(message.timestamp.toDate()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}
+                        ${isOwnMessage && userSettings.readReceipts ? '<i class="fas fa-check ml-1"></i>' : ''}
+                    </div>
+                </div>
+            `;
+            return messageDiv;
+        }
+
+        function listenForTypingIndicators(roomId) {
+            db.collection('rooms').doc(roomId).onSnapshot(doc => {
+                if (doc.exists) {
+                    const data = doc.data();
+                    const typingUsers = data.typingUsers || {};
+                    const typingIndicator = document.getElementById('typing-indicator');
+                    
+                    // Filter out current user and expired typing indicators
+                    const activeTypers = Object.keys(typingUsers).filter(userId => {
+                        if (userId === currentUser?.uid) return false;
+                        const userTyping = typingUsers[userId];
+                        const now = new Date();
+                        const typingTime = userTyping.timestamp?.toDate();
+                        return typingTime && (now - typingTime) < 5000; // 5 second timeout
+                    });
+                    
+                    if (activeTypers.length > 0) {
+                        const names = activeTypers.map(userId => typingUsers[userId].username).join(', ');
+                        typingIndicator.style.display = 'flex';
+                        typingIndicator.querySelector('span').textContent = `${names} ${activeTypers.length === 1 ? 'is' : 'are'} typing...`;
+                    } else {
+                        typingIndicator.style.display = 'none';
+                    }
+                }
+            });
+        }
+
         async function startPrivateChat(targetUserId, targetUsername) {
             if (!currentUser || currentUser.uid === targetUserId) return;
 
-            // Create a unique room ID for private chat (e.g., sorted user IDs)
             const userIds = [currentUser.uid, targetUserId].sort();
             const privateRoomId = `private_${userIds[0]}_${userIds[1]}`;
 
-            // Check if room already exists
             const roomRef = db.collection('rooms').doc(privateRoomId);
             const roomDoc = await roomRef.get();
 
             if (!roomDoc.exists) {
-                // Create new private room
                 await roomRef.set({
                     name: `${currentUser.displayName || currentUser.email.split('@')[0]} & ${targetUsername}`,
                     members: userIds,
                     type: 'private',
-                    createdAt: firebase.firestore.FieldValue.serverTimestamp()
+                    createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+                    lastActivity: firebase.firestore.FieldValue.serverTimestamp()
                 });
             }
             
-            selectChatRoom(privateRoomId, targetUsername); // Select the private chat room
-            toggleSidebar(); // Close sidebar after selecting a chat
+            selectChatRoom(privateRoomId, targetUsername);
         }
 
-        // Initial room creation (for demonstration, you'd have a UI for this)
-        async function createDemoRoom() {
-            const demoRoomRef = db.collection('rooms').doc('general_chat');
-            const demoRoomDoc = await demoRoomRef.get();
-            if (!demoRoomDoc.exists) {
-                await demoRoomRef.set({
-                    name: 'General Chat',
-                    type: 'public',
-                    createdAt: firebase.firestore.FieldValue.serverTimestamp()
+        // Create default rooms on first load
+        async function createDefaultRooms() {
+            const defaultRooms = [
+                { id: 'general', name: 'General', description: 'General discussion' },
+                { id: 'random', name: 'Random', description: 'Random conversations' },
+                { id: 'tech', name: 'Tech Talk', description: 'Technology discussions' }
+            ];
+
+            for (const room of defaultRooms) {
+                const roomRef = db.collection('rooms').doc(room.id);
+                const roomDoc = await roomRef.get();
+                
+                if (!roomDoc.exists) {
+                    await roomRef.set({
+                        name: room.name,
+                        description: room.description,
+                        type: 'public',
+                        createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+                        lastActivity: firebase.firestore.FieldValue.serverTimestamp()
+                    });
+                }
+            }
+        }
+
+        // Initialize default rooms when app loads
+        setTimeout(() => {
+            if (currentUser) {
+                createDefaultRooms();
+            }
+        }, 5000);
+
+        // Enhanced keyboard shortcuts
+        document.addEventListener('keydown', function(e) {
+            // Ctrl/Cmd + K to focus search
+            if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+                e.preventDefault();
+                document.getElementById('search-input').focus();
+            }
+            
+            // Escape to close modals
+            if (e.key === 'Escape') {
+                document.getElementById('settings-modal').classList.add('hidden');
+                document.getElementById('profile-modal').classList.add('hidden');
+                document.getElementById('add-contact-modal').classList.add('hidden');
+                document.getElementById('emoji-picker').classList.add('hidden');
+            }
+        });
+
+        // Handle window resize for responsive behavior
+        window.addEventListener('resize', function() {
+            if (window.innerWidth >= 768) {
+                document.getElementById('sidebar').classList.remove('active');
+                document.getElementById('sidebar-overlay').classList.remove('active');
+            }
+        });
+
+        // Desktop notification permission request
+        function requestNotificationPermission() {
+            if ('Notification' in window && userSettings.desktopNotifications) {
+                Notification.requestPermission().then(permission => {
+                    if (permission === 'granted') {
+                        console.log('Notification permission granted');
+                    }
                 });
             }
         }
-        // Call this function after checkAuthState or when the app loads
-        // createDemoRoom(); // Uncomment to create a default room on first load
+
+        // Call this when user enables desktop notifications
+        document.getElementById('desktop-notifications')?.addEventListener('change', function() {
+            if (this.checked) {
+                requestNotificationPermission();
+            }
+        });
+
+        // Service worker registration for PWA features (optional)
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', function() {
+                navigator.serviceWorker.register('/sw.js').then(function(registration) {
+                    console.log('SW registered: ', registration);
+                }).catch(function(registrationError) {
+                    console.log('SW registration failed: ', registrationError);
+                });
+            });
+        }
     </script>
 </body>
 </html>
