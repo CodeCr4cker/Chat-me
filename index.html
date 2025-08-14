@@ -258,7 +258,7 @@
                     <span id="username-display" class="font-medium cursor-pointer hover:text-purple-400 transition"></span>
                     <div class="relative">
                         <button id="user-dropdown-btn">
-                            <div class="w-8 h-8 rounded-full bg-purple-600 flex items-center justify-center text-white">
+                            <div id="nav-avatar" class="w-8 h-8 rounded-full bg-purple-600 flex items-center justify-center text-white">
                                 <i class="fas fa-user"></i>
                             </div>
                         </button>
@@ -404,7 +404,7 @@
                     </div>
 
                     <!-- Message Input -->
-                    <div class="p-4 border-t border-gray-800 bg-gray-800">
+                    <div id="message-input-area" class="p-4 border-t border-gray-800 bg-gray-800 hidden">
                         <div id="file-preview" class="mb-2 hidden">
                             <div class="flex items-center bg-gray-700 p-2 rounded">
                                 <span id="file-name" class="flex-1 truncate text-gray-300"></span>
@@ -717,6 +717,22 @@
                 </div>
             </div>
 
+            <!-- Notifications Panel -->
+            <div id="notifications-panel" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center hidden z-50">
+                <div class="bg-gray-800 rounded-lg p-6 w-full max-w-md max-h-[90vh] overflow-y-auto">
+                    <div class="flex justify-between items-center mb-4">
+                        <h2 class="text-xl font-bold text-white">Notifications</h2>
+                        <button id="close-notifications-panel" class="text-gray-400 hover:text-gray-300">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </div>
+                    <div id="notifications-list" class="space-y-3">
+                        <!-- Notifications will be populated here -->
+                        <p class="text-gray-400 text-center" id="no-notifications-message">No new notifications.</p>
+                    </div>
+                </div>
+            </div>
+
             <!-- Emoji Picker -->
             <div id="emoji-picker" class="absolute bottom-16 right-4 bg-gray-700 rounded-lg p-4 hidden z-30 w-72">
                 <div class="grid grid-cols-8 gap-2 max-h-48 overflow-y-auto">
@@ -779,6 +795,7 @@
             chatBackground: 'default',
             compactMode: false
         };
+        let blockedUsers = []; // New global variable for blocked users
 
         const myDemoVideo = document.getElementById('myDemoVideo');
         const myDemoAudio = document.getElementById('myDemoAudio');
@@ -797,6 +814,7 @@
             setupMediaListeners();
             initializeEmojiPicker();
             loadUserSettings();
+            document.getElementById('message-input-area').classList.add('hidden'); // Hide message input initially
         });
 
         function setupEventListeners() {
@@ -856,7 +874,7 @@
             // Enhanced features
             document.getElementById('emoji-btn').addEventListener('click', toggleEmojiPicker);
             document.getElementById('voice-message-btn').addEventListener('click', handleVoiceMessage);
-            document.getElementById('notifications-btn').addEventListener('click', showNotifications);
+            document.getElementById('notifications-btn').addEventListener('click', openNotificationsPanel); // Changed to open panel
             
             // Profile modal
             document.getElementById('close-profile-modal').addEventListener('click', closeProfileModal);
@@ -879,6 +897,9 @@
             document.getElementById('add-contact-btn').addEventListener('click', openAddContactModal);
             document.getElementById('close-add-contact-modal').addEventListener('click', closeAddContactModal);
             document.getElementById('add-contact-form').addEventListener('submit', handleAddContact);
+
+            // Notifications Panel
+            document.getElementById('close-notifications-panel').addEventListener('click', closeNotificationsPanel);
 
             // Sidebar overlay for mobile
             document.getElementById('sidebar-overlay').addEventListener('click', toggleSidebar);
@@ -1161,9 +1182,10 @@
         function createContactElement(contact) {
             const div = document.createElement('div');
             div.className = 'flex items-center p-3 rounded-lg hover:bg-gray-700 cursor-pointer group';
+            const isBlocked = blockedUsers.includes(contact.id);
             div.innerHTML = `
                 <div class="w-10 h-10 rounded-full bg-purple-600 flex items-center justify-center text-white text-sm mr-3">
-                    ${contact.username ? contact.username.charAt(0).toUpperCase() : contact.email.charAt(0).toUpperCase()}
+                    ${contact.avatarUrl ? `<img src="${contact.avatarUrl}" class="w-full h-full rounded-full object-cover" alt="Avatar">` : (contact.username ? contact.username.charAt(0).toUpperCase() : contact.email.charAt(0).toUpperCase())}
                 </div>
                 <div class="flex-1">
                     <div class="font-medium text-gray-200">${contact.username || contact.email.split('@')[0]}</div>
@@ -1175,6 +1197,9 @@
                     </button>
                     <button class="text-blue-400 hover:text-blue-300" onclick="callContact('${contact.id}')">
                         <i class="fas fa-phone"></i>
+                    </button>
+                    <button class="${isBlocked ? 'text-green-400' : 'text-red-400'} hover:${isBlocked ? 'text-green-300' : 'text-red-300'}" onclick="toggleBlockUser('${contact.id}')" title="${isBlocked ? 'Unblock User' : 'Block User'}">
+                        <i class="fas fa-${isBlocked ? 'check-circle' : 'ban'}"></i>
                     </button>
                 </div>
             `;
@@ -1414,11 +1439,17 @@
                     
                     const targetUser = snapshot.docs[0];
                     const targetData = targetUser.data();
+
+                    if (targetUser.id === currentUser.uid) {
+                        showError('You cannot add yourself as a contact.');
+                        return;
+                    }
                     
                     // Add to contacts
                     return db.collection('users').doc(currentUser.uid).collection('contacts').doc(targetUser.id).set({
                         username: targetData.username,
                         email: targetData.email,
+                        avatarUrl: targetData.avatarUrl || null,
                         addedAt: firebase.firestore.FieldValue.serverTimestamp(),
                         message: message
                     });
@@ -1438,9 +1469,111 @@
             // TODO: Implement voice recording
         }
 
-        function showNotifications() {
-            showError('Notifications panel is not implemented yet');
-            // TODO: Implement notifications panel
+        function openNotificationsPanel() {
+            document.getElementById('notifications-panel').classList.remove('hidden');
+            document.getElementById('user-dropdown').classList.add('hidden');
+            loadNotifications();
+        }
+
+        function closeNotificationsPanel() {
+            document.getElementById('notifications-panel').classList.add('hidden');
+            // Mark all displayed notifications as read when closing the panel
+            markAllNotificationsAsRead();
+        }
+
+        function loadNotifications() {
+            if (!currentUser) return;
+
+            db.collection('users').doc(currentUser.uid).collection('notifications')
+                .orderBy('timestamp', 'desc')
+                .onSnapshot(snapshot => {
+                    const notificationsList = document.getElementById('notifications-list');
+                    notificationsList.innerHTML = '';
+                    let unreadCount = 0;
+
+                    if (snapshot.empty) {
+                        notificationsList.innerHTML = '<p class="text-gray-400 text-center">No new notifications.</p>';
+                        document.getElementById('notification-badge').classList.add('hidden');
+                        document.getElementById('notification-badge').textContent = '0';
+                        return;
+                    }
+
+                    snapshot.docs.forEach(doc => {
+                        const notification = { id: doc.id, ...doc.data() };
+                        const notificationDiv = createNotificationElement(notification);
+                        notificationsList.appendChild(notificationDiv);
+                        if (!notification.read) {
+                            unreadCount++;
+                        }
+                    });
+                    updateNotificationBadge(unreadCount);
+                }, error => {
+                    console.error("Error loading notifications: ", error);
+                    showError('Error loading notifications.');
+                });
+        }
+
+        function createNotificationElement(notification) {
+            const div = document.createElement('div');
+            div.className = `p-3 rounded-lg ${notification.read ? 'bg-gray-700' : 'bg-purple-800'} flex items-center justify-between`;
+            div.innerHTML = `
+                <div>
+                    <div class="font-medium text-gray-100">${notification.title}</div>
+                    <div class="text-sm text-gray-300">${notification.message}</div>
+                    <div class="text-xs text-gray-400">${formatDate(notification.timestamp)}</div>
+                </div>
+                <div class="flex space-x-2">
+                    ${!notification.read ? `<button class="text-green-400 hover:text-green-300" onclick="markNotificationAsRead('${notification.id}')" title="Mark as Read"><i class="fas fa-check"></i></button>` : ''}
+                    <button class="text-red-400 hover:text-red-300" onclick="deleteNotification('${notification.id}')" title="Delete"><i class="fas fa-trash"></i></button>
+                </div>
+            `;
+            return div;
+        }
+
+        function updateNotificationBadge(count) {
+            const badge = document.getElementById('notification-badge');
+            if (count > 0) {
+                badge.textContent = count;
+                badge.classList.remove('hidden');
+            } else {
+                badge.classList.add('hidden');
+            }
+        }
+
+        function markNotificationAsRead(notificationId) {
+            if (!currentUser) return;
+            db.collection('users').doc(currentUser.uid).collection('notifications').doc(notificationId).update({
+                read: true
+            }).catch(error => {
+                console.error("Error marking notification as read: ", error);
+                showError('Error marking notification as read.');
+            });
+        }
+
+        function markAllNotificationsAsRead() {
+            if (!currentUser) return;
+            db.collection('users').doc(currentUser.uid).collection('notifications')
+                .where('read', '==', false)
+                .get()
+                .then(snapshot => {
+                    const batch = db.batch();
+                    snapshot.docs.forEach(doc => {
+                        batch.update(doc.ref, { read: true });
+                    });
+                    return batch.commit();
+                })
+                .catch(error => {
+                    console.error("Error marking all notifications as read: ", error);
+                });
+        }
+
+        function deleteNotification(notificationId) {
+            if (!currentUser) return;
+            db.collection('users').doc(currentUser.uid).collection('notifications').doc(notificationId).delete()
+                .catch(error => {
+                    console.error("Error deleting notification: ", error);
+                    showError('Error deleting notification.');
+                });
         }
 
         // Utility functions
@@ -1510,7 +1643,8 @@
                         email: email,
                         createdAt: firebase.firestore.FieldValue.serverTimestamp(),
                         status: 'online',
-                        settings: userSettings
+                        settings: userSettings,
+                        blockedUsers: [] // Initialize blocked users array
                     });
                 })
                 .then(() => {
@@ -1556,6 +1690,8 @@
                         loadContacts();
                         loadChatHistory();
                         loadUserSettingsFromFirestore();
+                        listenForBlockedUsers(); // Listen for blocked users
+                        listenForNotifications(); // Listen for notifications
                     }, 2000);
                 } else {
                     currentUser = null;
@@ -1569,9 +1705,18 @@
             if (currentUser) {
                 db.collection('users').doc(currentUser.uid).get()
                     .then(doc => {
-                        if (doc.exists && doc.data().settings) {
-                            userSettings = { ...userSettings, ...doc.data().settings };
-                            applySettings();
+                        if (doc.exists) {
+                            const userData = doc.data();
+                            if (userData.settings) {
+                                userSettings = { ...userSettings, ...userData.settings };
+                                applySettings();
+                            }
+                            if (userData.avatarUrl) {
+                                document.getElementById('profile-avatar').style.backgroundImage = `url('${userData.avatarUrl}')`;
+                                document.getElementById('profile-avatar').innerHTML = '';
+                                document.getElementById('nav-avatar').style.backgroundImage = `url('${userData.avatarUrl}')`;
+                                document.getElementById('nav-avatar').innerHTML = '';
+                            }
                         }
                     })
                     .catch(error => {
@@ -1592,6 +1737,12 @@
                     }
                     if (userData.status) {
                         document.getElementById('profile-status').value = userData.status;
+                    }
+                    if (userData.avatarUrl) {
+                        document.getElementById('profile-avatar').style.backgroundImage = `url('${userData.avatarUrl}')`;
+                        document.getElementById('profile-avatar').innerHTML = '';
+                        document.getElementById('nav-avatar').style.backgroundImage = `url('${userData.avatarUrl}')`;
+                        document.getElementById('nav-avatar').innerHTML = '';
                     }
                 }
             });
@@ -1629,6 +1780,13 @@
                     if (userData.status) {
                         document.getElementById('profile-status').value = userData.status;
                     }
+                    if (userData.avatarUrl) {
+                        document.getElementById('profile-avatar').style.backgroundImage = `url('${userData.avatarUrl}')`;
+                        document.getElementById('profile-avatar').innerHTML = '';
+                    } else {
+                        document.getElementById('profile-avatar').style.backgroundImage = 'none';
+                        document.getElementById('profile-avatar').innerHTML = '<i class="fas fa-user text-4xl"></i>';
+                    }
                 }
             });
             
@@ -1665,7 +1823,11 @@
             
             document.getElementById('username-display').textContent = username;
             
-            if (newPassword && newPassword === confirmNewPassword) {
+            if (newPassword) {
+                if (newPassword !== confirmNewPassword) {
+                    showError('New passwords do not match');
+                    return;
+                }
                 if (!currentPassword) {
                     showError('Please enter your current password to change password');
                     return;
@@ -1703,11 +1865,45 @@
                 db.collection('users').doc(currentUser.uid).update({
                     status: 'offline',
                     lastSeen: firebase.firestore.FieldValue.serverTimestamp()
-                }).then(() => {
+                })
+                .then(() => {
                     return auth.signOut();
+                })
+                .then(() => {
+                    showSuccess('Logged out successfully.');
+                    // Clear global state
+                    currentUser = null;
+                    currentRoomId = null;
+                    allUsers = [];
+                    contacts = [];
+                    chatHistory = [];
+                    blockedUsers = [];
+                    // Reset UI
+                    document.getElementById('messages-container').innerHTML = '';
+                    document.getElementById('recent-chats').innerHTML = '';
+                    document.getElementById('rooms-list').innerHTML = '';
+                    document.getElementById('contacts-list').innerHTML = '';
+                    document.getElementById('online-users').innerHTML = '';
+                    document.getElementById('chat-history').innerHTML = '';
+                    document.getElementById('current-room').textContent = 'Select a room to start chatting';
+                    document.getElementById('empty-state').classList.remove('hidden');
+                    document.getElementById('message-input-area').classList.add('hidden');
+                    document.getElementById('notification-badge').classList.add('hidden');
+                    document.getElementById('notification-badge').textContent = '0';
+                })
+                .catch(error => {
+                    showError('Error logging out: ' + error.message);
+                    console.error("Logout error:", error);
                 });
             } else {
-                auth.signOut();
+                auth.signOut()
+                .then(() => {
+                    showSuccess('Logged out successfully.');
+                })
+                .catch(error => {
+                    showError('Error logging out: ' + error.message);
+                    console.error("Logout error:", error);
+                });
             }
         }
 
@@ -1817,29 +2013,108 @@
 
         function handleImageUpload(e) {
             const file = e.target.files[0];
-            if (!file) return;
-            
-            showError('Image upload functionality is a placeholder - would upload to Firebase Storage');
+            if (!file || !currentUser || !currentRoomId) return;
+
+            const storageRef = storage.ref();
+            const imageRef = storageRef.child(`chat_images/${currentRoomId}/${Date.now()}_${file.name}`);
+
+            document.getElementById('file-name').textContent = file.name;
+            document.getElementById('file-preview').classList.remove('hidden');
+
+            imageRef.put(file)
+                .then(snapshot => snapshot.ref.getDownloadURL())
+                .then(downloadURL => {
+                    const messageData = {
+                        senderId: currentUser.uid,
+                        senderName: document.getElementById('username-display').textContent,
+                        imageUrl: downloadURL,
+                        timestamp: firebase.firestore.FieldValue.serverTimestamp(),
+                        type: 'image'
+                    };
+                    return db.collection('rooms').doc(currentRoomId).collection('messages').add(messageData);
+                })
+                .then(() => {
+                    showSuccess('Image sent successfully!');
+                    cancelFileUpload();
+                    const messagesContainer = document.getElementById('messages-container');
+                    messagesContainer.scrollTop = messagesContainer.scrollHeight;
+                })
+                .catch(error => {
+                    showError('Error uploading image: ' + error.message);
+                    console.error("Image upload error:", error);
+                    cancelFileUpload();
+                });
         }
 
         function handleFileUpload(e) {
             const file = e.target.files[0];
-            if (!file) return;
-            
-            showError('File upload functionality is a placeholder - would upload to Firebase Storage');
+            if (!file || !currentUser || !currentRoomId) return;
+
+            const storageRef = storage.ref();
+            const fileRef = storageRef.child(`chat_files/${currentRoomId}/${Date.now()}_${file.name}`);
+
+            document.getElementById('file-name').textContent = file.name;
+            document.getElementById('file-preview').classList.remove('hidden');
+
+            fileRef.put(file)
+                .then(snapshot => snapshot.ref.getDownloadURL())
+                .then(downloadURL => {
+                    const messageData = {
+                        senderId: currentUser.uid,
+                        senderName: document.getElementById('username-display').textContent,
+                        fileUrl: downloadURL,
+                        fileName: file.name,
+                        fileType: file.type,
+                        timestamp: firebase.firestore.FieldValue.serverTimestamp(),
+                        type: 'file'
+                    };
+                    return db.collection('rooms').doc(currentRoomId).collection('messages').add(messageData);
+                })
+                .then(() => {
+                    showSuccess('File sent successfully!');
+                    cancelFileUpload();
+                    const messagesContainer = document.getElementById('messages-container');
+                    messagesContainer.scrollTop = messagesContainer.scrollHeight;
+                })
+                .catch(error => {
+                    showError('Error uploading file: ' + error.message);
+                    console.error("File upload error:", error);
+                    cancelFileUpload();
+                });
         }
 
         function cancelFileUpload() {
             document.getElementById('file-input').value = '';
             document.getElementById('image-input').value = '';
             document.getElementById('file-preview').classList.add('hidden');
+            document.getElementById('file-name').textContent = '';
         }
 
         function handleAvatarUpload(e) {
             const file = e.target.files[0];
-            if (!file) return;
+            if (!file || !currentUser) return;
             
-            showError('Avatar upload functionality is a placeholder - would upload to Firebase Storage');
+            const storageRef = storage.ref();
+            const avatarRef = storageRef.child(`avatars/${currentUser.uid}/${file.name}`);
+
+            avatarRef.put(file)
+                .then(snapshot => snapshot.ref.getDownloadURL())
+                .then(downloadURL => {
+                    return db.collection('users').doc(currentUser.uid).update({
+                        avatarUrl: downloadURL
+                    });
+                })
+                .then(() => {
+                    document.getElementById('profile-avatar').style.backgroundImage = `url('${downloadURL}')`;
+                    document.getElementById('profile-avatar').innerHTML = ''; // Remove default icon
+                    document.getElementById('nav-avatar').style.backgroundImage = `url('${downloadURL}')`;
+                    document.getElementById('nav-avatar').innerHTML = ''; // Update nav avatar
+                    showSuccess('Profile picture updated successfully!');
+                })
+                .catch(error => {
+                    showError('Error uploading avatar: ' + error.message);
+                    console.error("Avatar upload error:", error);
+                });
         }
 
         function showError(message) {
@@ -1914,19 +2189,21 @@
                 userDiv.className = 'flex items-center p-2 rounded-lg hover:bg-gray-700 cursor-pointer group';
                 userDiv.innerHTML = `
                     <div class="w-8 h-8 rounded-full bg-purple-600 flex items-center justify-center text-white text-sm mr-2">
-                        ${user.username ? user.username.charAt(0).toUpperCase() : user.email.charAt(0).toUpperCase()}
+                        ${user.avatarUrl ? `<img src="${user.avatarUrl}" class="w-full h-full rounded-full object-cover" alt="Avatar">` : (user.username ? user.username.charAt(0).toUpperCase() : user.email.charAt(0).toUpperCase())}
                     </div>
                     <div class="flex-1">
                         <span class="text-gray-200">${user.username || user.email.split('@')[0]}</span>
                         ${user.status === 'online' ? '<span class="online-dot ml-2"></span>' : ''}
                     </div>
                     <div class="opacity-0 group-hover:opacity-100 transition-opacity">
-                        <button class="text-green-400 hover:text-green-300 p-1" title="Start Chat">
+                        <button class="text-green-400 hover:text-green-300 p-1" title="Start Chat" onclick="startPrivateChat('${user.id}', '${user.username || user.email.split('@')[0]}')">
                             <i class="fas fa-comment text-sm"></i>
+                        </button>
+                        <button class="${blockedUsers.includes(user.id) ? 'text-green-400' : 'text-red-400'} hover:${blockedUsers.includes(user.id) ? 'text-green-300' : 'text-red-300'} p-1" onclick="toggleBlockUser('${user.id}')" title="${blockedUsers.includes(user.id) ? 'Unblock User' : 'Block User'}">
+                            <i class="fas fa-${blockedUsers.includes(user.id) ? 'check-circle' : 'ban'} text-sm"></i>
                         </button>
                     </div>
                 `;
-                userDiv.addEventListener('click', () => startPrivateChat(user.id, user.username || user.email.split('@')[0]));
                 container.appendChild(userDiv);
             });
         }
@@ -1963,7 +2240,7 @@
                             db.collection('users').doc(otherMember).get().then(userDoc => {
                                 if (userDoc.exists) {
                                     const userData = userDoc.data();
-                                    const chatDiv = createChatElement(doc.id, userData.username || userData.email.split('@')[0], chat.lastMessage, chat.lastActivity, true);
+                                    const chatDiv = createChatElement(doc.id, userData.username || userData.email.split('@')[0], chat.lastMessage, chat.lastActivity, true, userData.avatarUrl);
                                     recentChats.appendChild(chatDiv);
                                 }
                             });
@@ -1974,12 +2251,12 @@
                 });
         }
 
-        function createChatElement(roomId, name, lastMessage, lastActivity, isPrivate = false) {
+        function createChatElement(roomId, name, lastMessage, lastActivity, isPrivate = false, avatarUrl = null) {
             const div = document.createElement('div');
             div.className = `flex items-center p-3 rounded-lg hover:bg-gray-700 cursor-pointer chat-item ${isPrivate ? 'friend-chat' : 'group-chat'}`;
             div.innerHTML = `
                 <div class="w-10 h-10 rounded-full bg-purple-600 flex items-center justify-center text-white text-sm mr-3">
-                    ${isPrivate ? '<i class="fas fa-user"></i>' : '<i class="fas fa-users"></i>'}
+                    ${avatarUrl ? `<img src="${avatarUrl}" class="w-full h-full rounded-full object-cover" alt="Avatar">` : (isPrivate ? '<i class="fas fa-user"></i>' : '<i class="fas fa-users"></i>')}
                 </div>
                 <div class="flex-1">
                     <div class="font-medium text-gray-200">${name}</div>
@@ -2021,6 +2298,9 @@
             document.getElementById('current-room').textContent = roomName;
             document.getElementById('empty-state').classList.add('hidden');
             
+            // Show message input area
+            document.getElementById('message-input-area').classList.remove('hidden');
+
             // Update room selection visual feedback
             document.querySelectorAll('.chat-item, .room-item').forEach(item => {
                 item.classList.remove('bg-purple-700');
@@ -2042,12 +2322,24 @@
         function listenForMessages(roomId) {
             db.collection('rooms').doc(roomId).collection('messages')
                 .orderBy('timestamp')
-                .onSnapshot(snapshot => {
+                .onSnapshot(async snapshot => {
                     const messagesContainer = document.getElementById('messages-container');
                     messagesContainer.innerHTML = '';
 
+                    // Fetch blocked users list for the current user
+                    let currentBlockedUsers = [];
+                    if (currentUser) {
+                        const userDoc = await db.collection('users').doc(currentUser.uid).get();
+                        currentBlockedUsers = userDoc.data()?.blockedUsers || [];
+                    }
+
                     snapshot.docs.forEach(doc => {
                         const message = doc.data();
+                        // Do not display messages from blocked users
+                        if (currentBlockedUsers.includes(message.senderId)) {
+                            return; // Skip this message
+                        }
+
                         const messageDiv = createMessageElement(message);
                         messagesContainer.appendChild(messageDiv);
                     });
@@ -2063,10 +2355,25 @@
             const isOwnMessage = message.senderId === currentUser?.uid;
             
             messageDiv.className = `mb-4 flex ${isOwnMessage ? 'justify-end' : 'justify-start'}`;
+            
+            let messageContent = '';
+            if (message.type === 'text') {
+                messageContent = `<div class="break-words">${message.text}</div>`;
+            } else if (message.type === 'image' && message.imageUrl) {
+                messageContent = `<img src="${message.imageUrl}" alt="Image" class="message-image cursor-pointer" onclick="window.open(this.src, '_blank')">`;
+            } else if (message.type === 'file' && message.fileUrl) {
+                messageContent = `
+                    <div class="flex items-center space-x-2">
+                        <i class="fas fa-file text-lg"></i>
+                        <a href="${message.fileUrl}" target="_blank" class="text-purple-300 hover:underline truncate max-w-[200px]">${message.fileName || 'File'}</a>
+                    </div>
+                `;
+            }
+
             messageDiv.innerHTML = `
                 <div class="max-w-xs lg:max-w-md px-4 py-2 rounded-lg ${isOwnMessage ? 'bg-purple-600 text-white' : 'bg-gray-700 text-gray-100'}">
                     ${!isOwnMessage ? `<div class="font-semibold text-sm mb-1 text-purple-400">${message.senderName}</div>` : ''}
-                    <div class="break-words">${message.text}</div>
+                    ${messageContent}
                     <div class="text-xs mt-1 opacity-75 text-right">
                         ${message.timestamp ? new Date(message.timestamp.toDate()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}
                         ${isOwnMessage && userSettings.readReceipts ? '<i class="fas fa-check ml-1"></i>' : ''}
@@ -2170,6 +2477,7 @@
                 document.getElementById('profile-modal').classList.add('hidden');
                 document.getElementById('add-contact-modal').classList.add('hidden');
                 document.getElementById('emoji-picker').classList.add('hidden');
+                document.getElementById('notifications-panel').classList.add('hidden'); // Close notifications panel
             }
         });
 
@@ -2208,6 +2516,118 @@
                     console.log('SW registration failed: ', registrationError);
                 });
             });
+        }
+
+        // New: Block/Unblock User Functionality
+        async function toggleBlockUser(targetUserId) {
+            if (!currentUser) return;
+
+            const userRef = db.collection('users').doc(currentUser.uid);
+            const userDoc = await userRef.get();
+            const currentBlockedUsers = userDoc.data()?.blockedUsers || [];
+
+            if (currentBlockedUsers.includes(targetUserId)) {
+                // Unblock user
+                await userRef.update({
+                    blockedUsers: firebase.firestore.FieldValue.arrayRemove(targetUserId)
+                });
+                showSuccess('User unblocked successfully.');
+            } else {
+                // Block user
+                await userRef.update({
+                    blockedUsers: firebase.firestore.FieldValue.arrayUnion(targetUserId)
+                });
+                showSuccess('User blocked successfully.');
+            }
+            // Update the global blockedUsers array and re-display contacts/online users
+            listenForBlockedUsers(); 
+            loadContacts();
+            loadAllUsers(); // To update online users list
+            // If the currently selected chat is with the blocked user, clear chat messages
+            if (currentRoomId && currentRoomId.includes(targetUserId)) {
+                document.getElementById('messages-container').innerHTML = '';
+                document.getElementById('empty-state').classList.remove('hidden');
+                document.getElementById('message-input-area').classList.add('hidden');
+                document.getElementById('current-room').textContent = 'Select a room to start chatting';
+                currentRoomId = null;
+            }
+        }
+
+        // New: Listen for current user's blocked list
+        function listenForBlockedUsers() {
+            if (!currentUser) return;
+            db.collection('users').doc(currentUser.uid).onSnapshot(doc => {
+                if (doc.exists) {
+                    blockedUsers = doc.data().blockedUsers || [];
+                    // Re-render contacts and online users to reflect block status
+                    displayContacts();
+                    displayUsers(allUsers.filter(user => user.id !== currentUser?.uid), 'online-users');
+                }
+            }, error => {
+                console.error("Error listening for blocked users: ", error);
+            });
+        }
+
+        // New: Listen for notifications
+        function listenForNotifications() {
+            if (!currentUser) return;
+            db.collection('users').doc(currentUser.uid).collection('notifications')
+                .where('read', '==', false)
+                .onSnapshot(snapshot => {
+                    updateNotificationBadge(snapshot.size);
+                    // If notifications panel is open, reload notifications
+                    if (!document.getElementById('notifications-panel').classList.contains('hidden')) {
+                        loadNotifications();
+                    }
+                }, error => {
+                    console.error("Error listening for notifications: ", error);
+                });
+        }
+
+        // New: Function to send a notification (example usage)
+        async function sendNotification(targetUserId, title, message) {
+            if (!targetUserId || !title || !message) return;
+
+            try {
+                await db.collection('users').doc(targetUserId).collection('notifications').add({
+                    title: title,
+                    message: message,
+                    timestamp: firebase.firestore.FieldValue.serverTimestamp(),
+                    read: false
+                });
+                console.log(`Notification sent to ${targetUserId}: ${title}`);
+            } catch (error) {
+                console.error("Error sending notification:", error);
+            }
+        }
+
+        // Example of how to trigger a notification (e.g., on new message)
+        // This would typically be done via a Firebase Cloud Function for security and reliability
+        // For demo purposes, adding a placeholder here:
+        /*
+        function sendMessage() {
+            // ... existing message sending logic ...
+            db.collection('rooms').doc(currentRoomId).collection('messages').add(messageData)
+                .then(() => {
+                    // ... existing success logic ...
+                    // After sending a message, if it's a private chat, send a notification to the other user
+                    if (currentRoomId.startsWith('private_')) {
+                        const memberIds = currentRoomId.split('_').slice(1);
+                        const otherUserId = memberIds.find(id => id !== currentUser.uid);
+                        if (otherUserId) {
+                            sendNotification(otherUserId, 'New Message', `${document.getElementById('username-display').textContent}: ${messageText}`);
+                        }
+                    }
+                })
+                .catch(error => {
+                    showError('Error sending message: ' + error.message);
+                });
+        }
+        */
+
+        function callContact(contactId) {
+            showError('Call functionality is not implemented yet for ' + contactId);
+            // TODO: Implement video/voice call
         }
     </script>
 </body>
