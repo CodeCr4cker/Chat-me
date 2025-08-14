@@ -351,19 +351,25 @@
         </div>
     </div>
 
+    <!-- Placeholder for a video element (replace with your actual video player) -->
+    <!-- For demonstration, this video will be paused when the profile modal closes -->
+    <video id="myDemoVideo" src="https://www.w3schools.com/html/mov_bbb.mp4" controls loop muted style="display:none;"></video>
+
+    <!-- Placeholder for an audio element (replace with your actual audio player) -->
+    <!-- For demonstration, this audio will be paused when the tab is hidden -->
+    <audio id="myDemoAudio" src="https://www.w3schools.com/html/horse.mp3" loop style="display:none;"></audio>
+
     <!-- Firebase Configuration and App Logic -->
     <script>
         // Initialize Firebase with your config
         const firebaseConfig = {
-  apiKey: "AIzaSyB5B4QX1tUIw0lSYsjy-HW7pvHOe4nMmL4",
-  authDomain: "website-1f91d.firebaseapp.com",
-  projectId: "website-1f91d",
-  storageBucket: "website-1f91d.firebasestorage.app",
-  messagingSenderId: "176653839690",
-  appId: "1:176653839690:web:55bec54b6f2d3895c9e5b3",
-  measurementId: "G-F5TKYBL0R2"
-};
-
+            apiKey: "AIzaSyDEXAMPLEEXAMPLEEXAMPLE",
+            authDomain: "your-project-id.firebaseapp.com",
+            projectId: "your-project-id",
+            storageBucket: "your-project-id.appspot.com",
+            messagingSenderId: "1234567890",
+            appId: "1:1234567890:web:abcdef1234567890"
+        };
         
         // Initialize Firebase
         firebase.initializeApp(firebaseConfig);
@@ -378,6 +384,10 @@
         let typingTimeout = null;
         let isTyping = false;
 
+        // Get references to the new media elements
+        const myDemoVideo = document.getElementById('myDemoVideo');
+        const myDemoAudio = document.getElementById('myDemoAudio');
+
         // Wait for DOM to load
         document.addEventListener('DOMContentLoaded', function() {
             // Show initial loader for 3 seconds
@@ -391,6 +401,7 @@
 
             // Set up event listeners
             setupEventListeners();
+            setupMediaListeners(); // Call the new media listeners setup
         });
 
         // Set up event listeners
@@ -436,11 +447,35 @@
             document.getElementById('cancel-upload').addEventListener('click', cancelFileUpload);
             
             // Profile modal
-            document.getElementById('close-profile-modal').addEventListener('click', () => document.getElementById('profile-modal').classList.add('hidden'));
+            // MODIFIED: Added video pause logic to closeProfileModal
+            document.getElementById('close-profile-modal').addEventListener('click', closeProfileModal);
             document.getElementById('profile-form').addEventListener('submit', updateProfile);
             document.getElementById('delete-account-btn').addEventListener('click', confirmAccountDeletion);
             document.getElementById('change-avatar').addEventListener('click', () => document.getElementById('avatar-input').click());
             document.getElementById('avatar-input').addEventListener('change', handleAvatarUpload);
+        }
+
+        // NEW FUNCTION: Setup listeners for media elements
+        function setupMediaListeners() {
+            // Listen for tab visibility changes to pause audio
+            document.addEventListener('visibilitychange', function() {
+                if (document.hidden) {
+                    // Tab is hidden, pause all audio elements
+                    console.log('Tab is hidden, pausing audio.');
+                    if (myDemoAudio && !myDemoAudio.paused) {
+                        myDemoAudio.pause();
+                    }
+                    // If you have other audio elements, add them here
+                    // e.g., document.querySelectorAll('audio').forEach(audio => audio.pause());
+                } else {
+                    // Tab is visible again
+                    console.log('Tab is visible.');
+                    // You can choose to resume audio here if desired, e.g.:
+                    // if (myDemoAudio && myDemoAudio.paused) {
+                    //     myDemoAudio.play();
+                    // }
+                }
+            });
         }
 
         // Handle login
@@ -578,6 +613,16 @@
             
             document.getElementById('profile-modal').classList.remove('hidden');
             document.getElementById('user-dropdown').classList.add('hidden');
+        }
+
+        // MODIFIED: Close profile modal and pause video
+        function closeProfileModal() {
+            document.getElementById('profile-modal').classList.add('hidden');
+            // Assuming the profile modal is your "gallery section"
+            if (myDemoVideo && !myDemoVideo.paused) {
+                myDemoVideo.pause();
+                console.log('Video paused because profile modal (gallery) was closed.');
+            }
         }
 
         // Update profile
